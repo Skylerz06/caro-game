@@ -9,6 +9,7 @@ from game.rules import check_win
 from utils.helpers import (
     WIN_SCORE,
     SearchMetrics,
+    branch_limit_for_depth,
     evaluate_board,
     opponent,
     ordered_moves,
@@ -18,11 +19,6 @@ from utils.helpers import (
 class MinimaxAI:
     name = "Minimax"
     key = "minimax"
-
-    @staticmethod
-    def _branch_limit(depth: int) -> int:
-        """Độ sâu cao dùng ít nhánh hơn để giữ UI phản hồi tốt."""
-        return {1: 18, 2: 14, 3: 10, 4: 7}.get(depth, 7)
 
     def choose_move(
         self,
@@ -35,7 +31,7 @@ class MinimaxAI:
         depth = max(1, depth)
         metrics = SearchMetrics(depth=depth)
         working = board.copy()
-        limit = self._branch_limit(depth)
+        limit = branch_limit_for_depth(depth)
         moves = ordered_moves(working, player, win_length, limit)
 
         best_move: tuple[int, int] | None = None
@@ -137,4 +133,3 @@ class MinimaxAI:
             )
             board.remove(next_row, next_col)
         return value
-

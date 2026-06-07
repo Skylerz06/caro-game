@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import inf
-
 from game.board import Board, EMPTY, PLAYER_O, PLAYER_X
 from game.rules import DIRECTIONS, check_win
 
 
 WIN_SCORE = 1_000_000_000
+BRANCH_LIMITS = {1: 20, 2: 14, 3: 9, 4: 7}
 
 
 @dataclass
@@ -35,28 +34,77 @@ def player_label(player: int) -> str:
     return "-"
 
 
-def pattern_weight(count: int, win_length: int) -> float:
-    """Trọng số tăng theo cấp số nhân khi chuỗi gần đạt k."""
+def branch_limit_for_depth(depth: int) -> int:
+    """Minimax và Alpha-Beta phải duyệt cùng một cây ở cùng độ sâu."""
+    return BRANCH_LIMITS.get(max(1, depth), BRANCH_LIMITS[4])
+
+
+def pattern_weight(
+    count: int,
+    open_ends: int,
+    win_length: int,
+) -> float:
+    """Chấm điểm chuỗi theo độ dài và số đầu còn mở."""
     if count <= 0:
         return 0.0
     if count >= win_length:
         return float(WIN_SCORE)
-    return float(8 ** count)
+    if open_ends <= 0:
+        return 0.0
+
+    distance = win_length - count
+    if distance == 1:
+        return 4_000_000.0 if open_ends == 2 else 350_000.0
+    if distance == 2:
+        return 80_000.0 if open_ends == 2 else 8_000.0
+
+    base = float(10 ** min(count, 5))
+    return base * (3.0 if open_ends == 2 else 1.0)
 
 
-def _iter_windows(board: Board, win_length: int):
-    """Sinh mọi cửa sổ dài k theo bốn hướng."""
+def _score_player_patterns(
+    board: Board,
+    player: int,
+    win_length: int,
+) -> float:
+    """Duyệt các chuỗi liên tiếp tối đại theo bốn hướng."""
+    score = 0.0
     for row in range(board.rows):
         for col in range(board.cols):
+            if board[row][col] != player:
+                continue
             for d_row, d_col in DIRECTIONS:
-                end_row = row + (win_length - 1) * d_row
-                end_col = col + (win_length - 1) * d_col
-                if not board.inside(end_row, end_col):
+                previous_row = row - d_row
+                previous_col = col - d_col
+                if (
+                    board.inside(previous_row, previous_col)
+                    and board[previous_row][previous_col] == player
+                ):
                     continue
-                yield [
-                    board[row + step * d_row][col + step * d_col]
-                    for step in range(win_length)
-                ]
+
+                length = 0
+                next_row, next_col = row, col
+                while (
+                    board.inside(next_row, next_col)
+                    and board[next_row][next_col] == player
+                ):
+                    length += 1
+                    next_row += d_row
+                    next_col += d_col
+
+                open_ends = 0
+                if (
+                    board.inside(previous_row, previous_col)
+                    and board[previous_row][previous_col] == EMPTY
+                ):
+                    open_ends += 1
+                if (
+                    board.inside(next_row, next_col)
+                    and board[next_row][next_col] == EMPTY
+                ):
+                    open_ends += 1
+                score += pattern_weight(length, open_ends, win_length)
+    return score
 
 
 def evaluate_board(
@@ -66,17 +114,11 @@ def evaluate_board(
 ) -> float:
     """Hàm lượng giá: chuỗi của ta cộng điểm, chuỗi địch trừ điểm."""
     enemy = opponent(maximizing_player)
-    score = 0.0
-    for window in _iter_windows(board, win_length):
-        own_count = window.count(maximizing_player)
-        enemy_count = window.count(enemy)
-        if own_count and enemy_count:
-            continue
-        if own_count:
-            score += pattern_weight(own_count, win_length)
-        elif enemy_count:
-            # Phòng thủ được ưu tiên nhẹ để AI ít bỏ sót đe dọa.
-            score -= 1.12 * pattern_weight(enemy_count, win_length)
+    score = _score_player_patterns(
+        board, maximizing_player, win_length
+    )
+    # Phòng thủ được ưu tiên nhẹ để AI ít bỏ sót đe dọa.
+    score -= 1.12 * _score_player_patterns(board, enemy, win_length)
 
     center_row = (board.rows - 1) / 2
     center_col = (board.cols - 1) / 2
@@ -131,37 +173,40 @@ def ordered_moves(
     center_row = (board.rows - 1) / 2
     center_col = (board.cols - 1) / 2
     ranked: list[tuple[float, tuple[int, int]]] = []
+    winning_moves: list[tuple[float, tuple[int, int]]] = []
+    blocking_moves: list[tuple[float, tuple[int, int]]] = []
 
     for row, col in board.candidate_moves(radius=2):
         priority = _neighbor_score(board, row, col, player)
 
         board.place(row, col, player)
-        if check_win(board, row, col, player, win_length):
+        is_winning_move = check_win(
+            board, row, col, player, win_length
+        )
+        if is_winning_move:
             priority += WIN_SCORE
         board.remove(row, col)
 
         board.place(row, col, enemy)
-        if check_win(board, row, col, enemy, win_length):
+        is_blocking_move = check_win(
+            board, row, col, enemy, win_length
+        )
+        if is_blocking_move:
             priority += WIN_SCORE / 2
         board.remove(row, col)
 
         distance = abs(row - center_row) + abs(col - center_col)
         priority -= distance
-        ranked.append((priority, (row, col)))
+        item = (priority, (row, col))
+        ranked.append(item)
+        if is_winning_move:
+            winning_moves.append(item)
+        elif is_blocking_move:
+            blocking_moves.append(item)
 
-    ranked.sort(key=lambda item: item[0], reverse=True)
-    moves = [move for _, move in ranked]
+    # Nước thắng ngay luôn tốt hơn mọi heuristic. Nếu không có, chỉ xét
+    # các ô chặn đối thủ thắng ở lượt kế tiếp.
+    selected = winning_moves or blocking_moves or ranked
+    selected.sort(key=lambda item: item[0], reverse=True)
+    moves = [move for _, move in selected]
     return moves if limit is None else moves[:limit]
-
-
-def terminal_score(
-    winner: int,
-    maximizing_player: int,
-    depth_remaining: int,
-) -> float:
-    if winner == maximizing_player:
-        return float(WIN_SCORE + depth_remaining)
-    if winner == opponent(maximizing_player):
-        return float(-WIN_SCORE - depth_remaining)
-    return -inf
-

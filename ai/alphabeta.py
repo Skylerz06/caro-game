@@ -9,6 +9,7 @@ from game.rules import check_win
 from utils.helpers import (
     WIN_SCORE,
     SearchMetrics,
+    branch_limit_for_depth,
     evaluate_board,
     opponent,
     ordered_moves,
@@ -18,11 +19,6 @@ from utils.helpers import (
 class AlphaBetaAI:
     name = "Alpha-Beta"
     key = "alphabeta"
-
-    @staticmethod
-    def _branch_limit(depth: int) -> int:
-        """Alpha-Beta cho phép xét nhiều ứng viên hơn Minimax."""
-        return {1: 20, 2: 18, 3: 14, 4: 11}.get(depth, 11)
 
     def choose_move(
         self,
@@ -35,7 +31,7 @@ class AlphaBetaAI:
         depth = max(1, depth)
         metrics = SearchMetrics(depth=depth)
         working = board.copy()
-        limit = self._branch_limit(depth)
+        limit = branch_limit_for_depth(depth)
         moves = ordered_moves(working, player, win_length, limit)
 
         alpha = float("-inf")
@@ -157,4 +153,3 @@ class AlphaBetaAI:
                 metrics.pruned_branches += 1
                 break
         return value
-

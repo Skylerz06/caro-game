@@ -52,14 +52,14 @@ class SettingsScreen:
             pygame.Rect(165, 185, 410, 82),
             "SỐ HÀNG (m)",
             self.draft.rows,
-            5,
+            3,
             20,
         )
         self.cols_stepper = Stepper(
             pygame.Rect(165, 286, 410, 82),
             "SỐ CỘT (n)",
             self.draft.cols,
-            5,
+            3,
             24,
         )
         self.win_stepper = Stepper(
@@ -210,7 +210,7 @@ class SettingsScreen:
 
         draw_text(
             surface,
-            "Kích thước hợp lệ: 5-20 hàng, 5-24 cột, k từ 3-8.",
+            "Kích thước hợp lệ: 3-20 hàng, 3-24 cột, k từ 3-8.",
             13,
             COLORS["muted"],
             (165, 500),
@@ -224,7 +224,7 @@ class SettingsScreen:
         )
         draw_text(
             surface,
-            "Độ sâu cao tăng chất lượng nhưng cần nhiều thời gian hơn.",
+            "Depth chỉ áp dụng cho Minimax/Alpha-Beta; Greedy cố định 1 ply.",
             13,
             COLORS["muted"],
             (650, 596),
@@ -233,4 +233,3 @@ class SettingsScreen:
         self.back_button.draw(surface)
         self.default_button.draw(surface)
         self.save_button.draw(surface)
-

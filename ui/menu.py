@@ -20,10 +20,10 @@ class MenuScreen:
             "settings": Button(
                 pygame.Rect(button_x, 404, 340, 58), "SETTINGS"
             ),
-            "ai_settings": Button(
-                pygame.Rect(button_x, 478, 340, 58),
-                "AI MODE SELECTION",
-            ),
+            # "ai_settings": Button(
+            #     pygame.Rect(button_x, 478, 340, 58),
+            #     "AI MODE SELECTION",
+            # ),
             "exit": Button(
                 pygame.Rect(button_x, 552, 340, 58),
                 "EXIT",

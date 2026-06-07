@@ -67,8 +67,8 @@ class GameSettings:
 
     def validate(self) -> "GameSettings":
         """Chuẩn hóa dữ liệu để tránh cấu hình không hợp lệ."""
-        self.rows = max(5, min(20, int(self.rows)))
-        self.cols = max(5, min(24, int(self.cols)))
+        self.rows = max(3, min(20, int(self.rows)))
+        self.cols = max(3, min(24, int(self.cols)))
         max_win = min(8, self.rows, self.cols)
         self.win_length = max(3, min(max_win, int(self.win_length)))
         self.ai_depth = max(1, min(4, int(self.ai_depth)))
@@ -115,4 +115,3 @@ def save_settings(settings: GameSettings) -> None:
         json.dumps(settings.to_dict(), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-

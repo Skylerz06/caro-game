@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 from dataclasses import dataclass
 from itertools import product
@@ -20,8 +21,10 @@ from game.state import GameState
 
 @dataclass
 class AlgorithmStats:
-    seats: int = 0
+    games: int = 0
     wins: int = 0
+    draws: int = 0
+    losses: int = 0
     moves: int = 0
     time_ms: float = 0.0
     nodes: int = 0
@@ -47,6 +50,8 @@ def play_game(
     win_length: int,
     depth: int,
     global_stats: dict[str, AlgorithmStats],
+    opening: list[tuple[int, int]],
+    count_for_summary: bool,
 ) -> tuple[int, int, float, int]:
     """Trả về winner, số nước, tổng thời gian và tổng node."""
     state = GameState(rows, cols, win_length)
@@ -56,6 +61,11 @@ def play_game(
     }
     total_time = 0.0
     total_nodes = 0
+    searched_moves = 0
+
+    for row, col in opening:
+        if state.game_over or not state.play_move(row, col):
+            break
 
     while not state.game_over:
         player = state.current_player
@@ -68,29 +78,69 @@ def play_game(
         state.play_move(*move)
         total_time += metrics.execution_time_ms
         total_nodes += metrics.nodes_expanded
-        stats = global_stats[key]
-        stats.moves += 1
-        stats.time_ms += metrics.execution_time_ms
-        stats.nodes += metrics.nodes_expanded
+        searched_moves += 1
+        if count_for_summary:
+            stats = global_stats[key]
+            stats.moves += 1
+            stats.time_ms += metrics.execution_time_ms
+            stats.nodes += metrics.nodes_expanded
 
-    global_stats[ai_x_key].seats += 1
-    global_stats[ai_o_key].seats += 1
-    if state.winner == PLAYER_X:
-        global_stats[ai_x_key].wins += 1
-    elif state.winner == PLAYER_O:
-        global_stats[ai_o_key].wins += 1
+    if count_for_summary:
+        for player, (key, _) in agents.items():
+            stats = global_stats[key]
+            stats.games += 1
+            if state.winner == player:
+                stats.wins += 1
+            elif state.is_draw:
+                stats.draws += 1
+            else:
+                stats.losses += 1
 
-    return state.winner, len(state.history), total_time, total_nodes
+    return state.winner, searched_moves, total_time, total_nodes
+
+
+def generate_opening(
+    rows: int,
+    cols: int,
+    win_length: int,
+    move_count: int,
+    seed: int,
+) -> list[tuple[int, int]]:
+    """Tạo thế khai cuộc tái lập để nhiều trận không hoàn toàn giống nhau."""
+    rng = random.Random(seed)
+    state = GameState(rows, cols, win_length)
+    opening: list[tuple[int, int]] = []
+    for _ in range(move_count):
+        candidates = state.board.candidate_moves(radius=2)
+        if not candidates:
+            break
+        move = rng.choice(candidates)
+        if not state.play_move(*move):
+            break
+        opening.append(move)
+        if state.game_over:
+            break
+    return opening
 
 
 def run_evaluation(args: argparse.Namespace) -> None:
     algorithms = args.algorithms
     global_stats = {key: AlgorithmStats() for key in algorithms}
     results: list[MatchupResult] = []
+    openings = [
+        generate_opening(
+            args.rows,
+            args.cols,
+            args.win,
+            args.opening_moves,
+            args.seed + game_index,
+        )
+        for game_index in range(args.games)
+    ]
 
     for ai_x_key, ai_o_key in product(algorithms, repeat=2):
         result = MatchupResult(ai_x=ai_x_key, ai_o=ai_o_key)
-        for _ in range(args.games):
+        for game_index in range(args.games):
             winner, moves, time_ms, nodes = play_game(
                 ai_x_key,
                 ai_o_key,
@@ -99,6 +149,8 @@ def run_evaluation(args: argparse.Namespace) -> None:
                 args.win,
                 args.depth,
                 global_stats,
+                openings[game_index],
+                ai_x_key != ai_o_key,
             )
             result.moves += moves
             result.time_ms += time_ms
@@ -132,22 +184,42 @@ def run_evaluation(args: argparse.Namespace) -> None:
             f"{result.nodes / move_count:>12.1f}"
         )
 
-    print("\nTỔNG HỢP THEO THUẬT TOÁN")
+    total_games = sum(
+        result.x_wins + result.o_wins + result.draws
+        for result in results
+    )
+    total_x_wins = sum(result.x_wins for result in results)
+    total_o_wins = sum(result.o_wins for result in results)
+    total_draws = sum(result.draws for result in results)
+    print(
+        "\nẢNH HƯỞNG THỨ TỰ ĐI: "
+        f"X thắng {total_x_wins}/{total_games}, "
+        f"O thắng {total_o_wins}/{total_games}, hòa {total_draws}. "
+        "Win rate tổng hợp bên dưới đã cân bằng hai vị trí X/O."
+    )
+
+    print("\nTỔNG HỢP ĐỐI ĐẦU KHÁC THUẬT TOÁN")
     summary_header = (
-        f"{'Thuật toán':<16} {'Win rate':>10} "
-        f"{'ms/nước':>12} {'node/nước':>12} {'Số nước':>10}"
+        f"{'Thuật toán':<16} {'W-D-L':>11} {'Win rate':>10} "
+        f"{'Score rate':>11} {'ms/nước':>11} {'node/nước':>11}"
     )
     print(summary_header)
     print("-" * len(summary_header))
     for key in algorithms:
         stats = global_stats[key]
-        win_rate = stats.wins / stats.seats * 100 if stats.seats else 0.0
+        win_rate = stats.wins / stats.games * 100 if stats.games else 0.0
+        score_rate = (
+            (stats.wins + 0.5 * stats.draws) / stats.games * 100
+            if stats.games
+            else 0.0
+        )
         move_count = max(1, stats.moves)
         print(
-            f"{ALGORITHM_LABELS[key]:<16} {win_rate:>9.1f}% "
-            f"{stats.time_ms / move_count:>12.2f} "
-            f"{stats.nodes / move_count:>12.1f} "
-            f"{stats.moves:>10}"
+            f"{ALGORITHM_LABELS[key]:<16} "
+            f"{stats.wins:>3}-{stats.draws}-{stats.losses:<3} "
+            f"{win_rate:>9.1f}% {score_rate:>10.1f}% "
+            f"{stats.time_ms / move_count:>11.2f} "
+            f"{stats.nodes / move_count:>11.1f}"
         )
 
 
@@ -166,6 +238,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Số trận cho mỗi cặp AI X/AI O.",
     )
     parser.add_argument(
+        "--opening-moves",
+        type=int,
+        default=2,
+        help="Số nước khai cuộc ngẫu nhiên có seed trước khi AI tìm kiếm.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Seed để tái lập các thế khai cuộc.",
+    )
+    parser.add_argument(
         "--algorithms",
         nargs="+",
         choices=ALGORITHMS,
@@ -176,15 +260,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    if not (5 <= args.rows <= 20 and 5 <= args.cols <= 24):
-        raise SystemExit("rows phải trong 5-20 và cols trong 5-24.")
+    if not (3 <= args.rows <= 20 and 3 <= args.cols <= 24):
+        raise SystemExit("rows phải trong 3-20 và cols trong 3-24.")
     if not (3 <= args.win <= min(8, args.rows, args.cols)):
         raise SystemExit("win phải trong 3-8 và không vượt kích thước bàn.")
     if args.games < 1:
         raise SystemExit("games phải lớn hơn hoặc bằng 1.")
+    if not 0 <= args.opening_moves <= 6:
+        raise SystemExit("opening-moves phải trong 0-6.")
     run_evaluation(args)
 
 
 if __name__ == "__main__":
     main()
-

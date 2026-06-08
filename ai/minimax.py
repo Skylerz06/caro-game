@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from time import perf_counter
 
+from ai.base import GameAI
 from game.board import Board
 from game.rules import check_win
 from utils.helpers import (
@@ -16,7 +17,7 @@ from utils.helpers import (
 )
 
 
-class MinimaxAI:
+class MinimaxAI(GameAI):
     name = "Minimax"
     key = "minimax"
 
@@ -32,7 +33,13 @@ class MinimaxAI:
         metrics = SearchMetrics(depth=depth)
         working = board.copy()
         limit = branch_limit_for_depth(depth)
-        moves = ordered_moves(working, player, win_length, limit)
+        moves = ordered_moves(
+            working,
+            player,
+            win_length,
+            limit,
+            tie_rng=self.tie_rng,
+        )
 
         best_move: tuple[int, int] | None = None
         best_score = float("-inf")

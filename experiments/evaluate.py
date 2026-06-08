@@ -17,6 +17,7 @@ from ai import create_ai
 from config.settings import ALGORITHM_LABELS, ALGORITHMS
 from game.board import PLAYER_O, PLAYER_X
 from game.state import GameState
+from utils.seedmaker import derive_seed, new_global_seed
 
 
 @dataclass
@@ -52,12 +53,27 @@ def play_game(
     global_stats: dict[str, AlgorithmStats],
     opening: list[tuple[int, int]],
     count_for_summary: bool,
+    game_seed: int,
 ) -> tuple[int, int, float, int]:
     """Trả về winner, số nước, tổng thời gian và tổng node."""
     state = GameState(rows, cols, win_length)
     agents = {
-        PLAYER_X: (ai_x_key, create_ai(ai_x_key)),
-        PLAYER_O: (ai_o_key, create_ai(ai_o_key)),
+        PLAYER_X: (
+            ai_x_key,
+            create_ai(
+                ai_x_key,
+                seed=derive_seed(game_seed, "ai:x"),
+                randomize_ties=True,
+            ),
+        ),
+        PLAYER_O: (
+            ai_o_key,
+            create_ai(
+                ai_o_key,
+                seed=derive_seed(game_seed, "ai:o"),
+                randomize_ties=True,
+            ),
+        ),
     }
     total_time = 0.0
     total_nodes = 0
@@ -127,13 +143,18 @@ def run_evaluation(args: argparse.Namespace) -> None:
     algorithms = args.algorithms
     global_stats = {key: AlgorithmStats() for key in algorithms}
     results: list[MatchupResult] = []
+    global_seed = new_global_seed()
+    game_seeds = [
+        derive_seed(global_seed, f"game:{game_index}")
+        for game_index in range(args.games)
+    ]
     openings = [
         generate_opening(
             args.rows,
             args.cols,
             args.win,
             args.opening_moves,
-            args.seed + game_index,
+            derive_seed(game_seeds[game_index], "opening"),
         )
         for game_index in range(args.games)
     ]
@@ -151,6 +172,7 @@ def run_evaluation(args: argparse.Namespace) -> None:
                 global_stats,
                 openings[game_index],
                 ai_x_key != ai_o_key,
+                game_seeds[game_index],
             )
             result.moves += moves
             result.time_ms += time_ms
@@ -166,7 +188,16 @@ def run_evaluation(args: argparse.Namespace) -> None:
     print(
         f"\nĐÁNH GIÁ CARO {args.rows}x{args.cols}, "
         f"k={args.win}, depth={args.depth}, {args.games} trận/cặp\n"
+        f"Global seed phiên chạy: {global_seed}\n"
     )
+    for game_index, (game_seed, opening) in enumerate(
+        zip(game_seeds, openings), 1
+    ):
+        print(
+            f"  Case {game_index}: game_seed={game_seed}, "
+            f"opening={opening}"
+        )
+    print()
     header = (
         f"{'AI X':<16} {'AI O':<16} {'X thắng':>7} {'O thắng':>7} "
         f"{'Hòa':>5} {'ms/nước':>10} {'node/nước':>12}"
@@ -241,13 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--opening-moves",
         type=int,
         default=2,
-        help="Số nước khai cuộc ngẫu nhiên có seed trước khi AI tìm kiếm.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="Seed để tái lập các thế khai cuộc.",
+        help="Số nước khai cuộc ngẫu nhiên trước khi AI tìm kiếm.",
     )
     parser.add_argument(
         "--algorithms",

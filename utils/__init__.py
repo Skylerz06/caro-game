@@ -1,2 +1,0 @@
-"""Tiện ích dùng chung."""
-

@@ -26,6 +26,7 @@ from ui.components import (
     draw_text,
 )
 from utils.helpers import SearchMetrics, player_label
+from utils.seedmaker import derive_seed, new_global_seed
 
 
 class GameScreen:
@@ -49,6 +50,7 @@ class GameScreen:
         self.ai_search_thread: Thread | None = None
         self.ai_results: Queue = Queue()
         self.ai_error = ""
+        self.game_seed = 0
         self.session_stats = {
             PLAYER_X: {"wins": 0, "draws": 0, "losses": 0, "games": 0},
             PLAYER_O: {"wins": 0, "draws": 0, "losses": 0, "games": 0},
@@ -79,12 +81,7 @@ class GameScreen:
             self.settings.cols,
             self.settings.win_length,
         )
-        self.ai_players = {}
-        if self.settings.match_mode == "human_ai":
-            self.ai_players[PLAYER_O] = create_ai(self.settings.ai_o)
-        elif self.settings.match_mode == "ai_ai":
-            self.ai_players[PLAYER_X] = create_ai(self.settings.ai_x)
-            self.ai_players[PLAYER_O] = create_ai(self.settings.ai_o)
+        self._create_ai_players()
 
         self.last_metrics = SearchMetrics()
         self.last_ai_player = None
@@ -111,12 +108,32 @@ class GameScreen:
     def _restart(self) -> None:
         self._invalidate_search()
         self.state.reset()
+        self._create_ai_players()
         self.last_metrics = SearchMetrics()
         self.last_ai_player = None
         self.review_index = 0
         self.last_action_time = pygame.time.get_ticks()
         self.result_recorded = False
         self.ai_error = ""
+
+    def _create_ai_players(self) -> None:
+        """Mỗi ván có global seed mới, sau đó tách seed cho từng AI."""
+        self.game_seed = new_global_seed()
+        self.ai_players = {}
+        if self.settings.match_mode == "human_ai":
+            self.ai_players[PLAYER_O] = create_ai(
+                self.settings.ai_o,
+                seed=derive_seed(self.game_seed, "ai:o"),
+            )
+        elif self.settings.match_mode == "ai_ai":
+            self.ai_players[PLAYER_X] = create_ai(
+                self.settings.ai_x,
+                seed=derive_seed(self.game_seed, "ai:x"),
+            )
+            self.ai_players[PLAYER_O] = create_ai(
+                self.settings.ai_o,
+                seed=derive_seed(self.game_seed, "ai:o"),
+            )
 
     def _invalidate_search(self) -> None:
         """Làm kết quả đang tính trở nên vô hiệu khi đổi/reset ván."""
@@ -596,6 +613,14 @@ class GameScreen:
                 f"AI error: {self.ai_error[:36]}",
                 11,
                 COLORS["danger"],
+                (904, 696),
+            )
+        else:
+            draw_text(
+                surface,
+                f"Game seed: {self.game_seed:016X}",
+                11,
+                COLORS["muted"],
                 (904, 696),
             )
 

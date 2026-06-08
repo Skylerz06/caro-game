@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from time import perf_counter
 
+from ai.base import GameAI
 from game.board import Board
 from game.rules import check_win
 from utils.helpers import (
@@ -14,7 +15,7 @@ from utils.helpers import (
 )
 
 
-class GreedyAI:
+class GreedyAI(GameAI):
     name = "Greedy Search"
     key = "greedy"
 
@@ -28,7 +29,12 @@ class GreedyAI:
         start = perf_counter()
         metrics = SearchMetrics(depth=1)
         working = board.copy()
-        moves = ordered_moves(working, player, win_length)
+        moves = ordered_moves(
+            working,
+            player,
+            win_length,
+            tie_rng=self.tie_rng,
+        )
 
         best_move: tuple[int, int] | None = None
         best_score = float("-inf")
@@ -49,4 +55,3 @@ class GreedyAI:
         metrics.score = best_score if best_move is not None else 0.0
         metrics.execution_time_ms = (perf_counter() - start) * 1000
         return best_move, metrics
-

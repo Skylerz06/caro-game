@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import groupby
+from random import Random
+
 from game.board import Board, EMPTY, PLAYER_O, PLAYER_X
 from game.rules import DIRECTIONS, check_win
 
@@ -167,8 +170,9 @@ def ordered_moves(
     player: int,
     win_length: int,
     limit: int | None = None,
+    tie_rng: Random | None = None,
 ) -> list[tuple[int, int]]:
-    """Sắp nước thắng/chặn thắng lên trước để tìm kiếm hiệu quả hơn."""
+    """Sắp nước tốt trước; có thể xáo trộn các nước đồng hạng."""
     enemy = opponent(player)
     center_row = (board.rows - 1) / 2
     center_col = (board.cols - 1) / 2
@@ -177,7 +181,12 @@ def ordered_moves(
     blocking_moves: list[tuple[float, tuple[int, int]]] = []
 
     for row, col in board.candidate_moves(radius=2):
-        priority = _neighbor_score(board, row, col, player)
+        attack_score = _neighbor_score(board, row, col, player)
+        defense_score = _neighbor_score(board, row, col, enemy)
+        # Xếp cả nước tấn công lẫn phòng thủ trước khi giới hạn nhánh.
+        # Nếu chỉ xét quân của AI, các đầu chuỗi mở 3/4 của đối thủ có thể
+        # bị loại khỏi cây tìm kiếm dù Minimax/Alpha-Beta đủ độ sâu.
+        priority = attack_score + 1.25 * defense_score
 
         board.place(row, col, player)
         is_winning_move = check_win(
@@ -208,5 +217,12 @@ def ordered_moves(
     # các ô chặn đối thủ thắng ở lượt kế tiếp.
     selected = winning_moves or blocking_moves or ranked
     selected.sort(key=lambda item: item[0], reverse=True)
+    if tie_rng is not None:
+        shuffled: list[tuple[float, tuple[int, int]]] = []
+        for _, group in groupby(selected, key=lambda item: item[0]):
+            tied_moves = list(group)
+            tie_rng.shuffle(tied_moves)
+            shuffled.extend(tied_moves)
+        selected = shuffled
     moves = [move for _, move in selected]
     return moves if limit is None else moves[:limit]

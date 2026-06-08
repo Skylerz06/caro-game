@@ -7,15 +7,19 @@ from ai.greedy import GreedyAI
 from ai.minimax import MinimaxAI
 
 
-def create_ai(algorithm: str):
+def create_ai(
+    algorithm: str,
+    *,
+    seed: int | None = None,
+    randomize_ties: bool = True,
+):
     if algorithm == "greedy":
-        return GreedyAI()
+        return GreedyAI(seed=seed, randomize_ties=randomize_ties)
     if algorithm == "minimax":
-        return MinimaxAI()
+        return MinimaxAI(seed=seed, randomize_ties=randomize_ties)
     if algorithm == "alphabeta":
-        return AlphaBetaAI()
+        return AlphaBetaAI(seed=seed, randomize_ties=randomize_ties)
     raise ValueError(f"Thuật toán AI không hợp lệ: {algorithm}")
 
 
 __all__ = ["AlphaBetaAI", "GreedyAI", "MinimaxAI", "create_ai"]
-

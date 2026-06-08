@@ -793,14 +793,14 @@ class GameScreen:
             f"Chế độ: {MATCH_MODE_LABELS[self.settings.match_mode]}",
             12,
             COLORS["muted"],
-            (904, 638),
+            (904, 623),
         )
         draw_text(
             surface,
             f"Điều kiện thắng: {self.settings.win_length} quân liên tiếp",
             12,
             COLORS["muted"],
-            (904, 658),
+            (904, 643),
         )
         if self.settings.match_mode == "ai_ai":
             matchup = (
@@ -812,7 +812,7 @@ class GameScreen:
                 matchup,
                 11,
                 COLORS["muted"],
-                (904, 678),
+                (904, 663),
             )
         if self.ai_error:
             draw_text(
@@ -820,7 +820,7 @@ class GameScreen:
                 f"AI error: {self.ai_error[:36]}",
                 11,
                 COLORS["danger"],
-                (904, 698),
+                (904, 683),
             )
         else:
             draw_text(
@@ -828,7 +828,7 @@ class GameScreen:
                 f"Game seed: {self.game_seed:016X}",
                 11,
                 COLORS["muted"],
-                (904, 698),
+                (904, 683),
             )
 
     def _draw_history(self, surface: pygame.Surface) -> None:

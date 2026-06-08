@@ -29,7 +29,8 @@ class SettingsScreen:
         self.rows_stepper: Stepper
         self.cols_stepper: Stepper
         self.win_stepper: Stepper
-        self.depth_stepper: Stepper
+        self.minimax_depth_stepper: Stepper
+        self.alphabeta_depth_stepper: Stepper
         self.mode_selector: ChoiceSelector
         self.ai_x_selector: ChoiceSelector
         self.ai_o_selector: ChoiceSelector
@@ -90,10 +91,18 @@ class SettingsScreen:
             algorithm_options,
             self.draft.ai_o,
         )
-        self.depth_stepper = Stepper(
-            pygame.Rect(650, 488, 450, 82),
-            "ĐỘ SÂU TÌM KIẾM",
-            self.draft.ai_depth,
+        self.minimax_depth_stepper = Stepper(
+            pygame.Rect(650, 488, 215, 82),
+            "ĐỘ SÂU MINIMAX",
+            self.draft.minimax_depth,
+            1,
+            4,
+            " ply",
+        )
+        self.alphabeta_depth_stepper = Stepper(
+            pygame.Rect(885, 488, 215, 82),
+            "ĐỘ SÂU ALPHA-BETA",
+            self.draft.alphabeta_depth,
             1,
             4,
             " ply",
@@ -118,7 +127,8 @@ class SettingsScreen:
         self.draft.match_mode = self.mode_selector.selected
         self.draft.ai_x = self.ai_x_selector.selected
         self.draft.ai_o = self.ai_o_selector.selected
-        self.draft.ai_depth = self.depth_stepper.value
+        self.draft.minimax_depth = self.minimax_depth_stepper.value
+        self.draft.alphabeta_depth = self.alphabeta_depth_stepper.value
         self.draft.validate()
         self._update_enabled_controls()
 
@@ -139,7 +149,8 @@ class SettingsScreen:
             self.rows_stepper,
             self.cols_stepper,
             self.win_stepper,
-            self.depth_stepper,
+            self.minimax_depth_stepper,
+            self.alphabeta_depth_stepper,
             self.mode_selector,
             self.ai_x_selector,
             self.ai_o_selector,
@@ -206,7 +217,8 @@ class SettingsScreen:
         self.mode_selector.draw(surface)
         self.ai_x_selector.draw(surface)
         self.ai_o_selector.draw(surface)
-        self.depth_stepper.draw(surface)
+        self.minimax_depth_stepper.draw(surface)
+        self.alphabeta_depth_stepper.draw(surface)
 
         draw_text(
             surface,
@@ -224,7 +236,7 @@ class SettingsScreen:
         )
         draw_text(
             surface,
-            "Depth chỉ áp dụng cho Minimax/Alpha-Beta; Greedy cố định 1 ply.",
+            "Depth được cấu hình riêng cho từng thuật toán; Greedy cố định 1 ply.",
             13,
             COLORS["muted"],
             (650, 596),

@@ -49,7 +49,7 @@ def play_game(
     rows: int,
     cols: int,
     win_length: int,
-    depth: int,
+    depths: dict[str, int],
     global_stats: dict[str, AlgorithmStats],
     opening: list[tuple[int, int]],
     count_for_summary: bool,
@@ -87,7 +87,7 @@ def play_game(
         player = state.current_player
         key, agent = agents[player]
         move, metrics = agent.choose_move(
-            state.board, player, win_length, depth
+            state.board, player, win_length, depths.get(key, 1)
         )
         if move is None:
             break
@@ -143,6 +143,11 @@ def run_evaluation(args: argparse.Namespace) -> None:
     algorithms = args.algorithms
     global_stats = {key: AlgorithmStats() for key in algorithms}
     results: list[MatchupResult] = []
+    depths = {
+        "greedy": 1,
+        "minimax": args.minimax_depth,
+        "alphabeta": args.alphabeta_depth,
+    }
     global_seed = new_global_seed()
     game_seeds = [
         derive_seed(global_seed, f"game:{game_index}")
@@ -168,7 +173,7 @@ def run_evaluation(args: argparse.Namespace) -> None:
                 args.rows,
                 args.cols,
                 args.win,
-                args.depth,
+                depths,
                 global_stats,
                 openings[game_index],
                 ai_x_key != ai_o_key,
@@ -187,7 +192,9 @@ def run_evaluation(args: argparse.Namespace) -> None:
 
     print(
         f"\nĐÁNH GIÁ CARO {args.rows}x{args.cols}, "
-        f"k={args.win}, depth={args.depth}, {args.games} trận/cặp\n"
+        f"k={args.win}, {args.games} trận/cặp\n"
+        f"Depth: Greedy=1, Minimax={args.minimax_depth}, "
+        f"Alpha-Beta={args.alphabeta_depth}\n"
         f"Global seed phiên chạy: {global_seed}\n"
     )
     for game_index, (game_seed, opening) in enumerate(
@@ -261,7 +268,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rows", type=int, default=10)
     parser.add_argument("--cols", type=int, default=10)
     parser.add_argument("--win", type=int, default=5)
-    parser.add_argument("--depth", type=int, choices=range(1, 5), default=2)
+    parser.add_argument(
+        "--depth",
+        type=int,
+        choices=range(1, 5),
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--minimax-depth", type=int, choices=range(1, 5), default=2
+    )
+    parser.add_argument(
+        "--alphabeta-depth", type=int, choices=range(1, 5), default=2
+    )
     parser.add_argument(
         "--games",
         type=int,
@@ -285,6 +304,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    if args.depth is not None:
+        args.minimax_depth = args.depth
+        args.alphabeta_depth = args.depth
     if not (3 <= args.rows <= 20 and 3 <= args.cols <= 24):
         raise SystemExit("rows phải trong 3-20 và cols trong 3-24.")
     if not (3 <= args.win <= min(8, args.rows, args.cols)):

@@ -62,7 +62,8 @@ class GameSettings:
     match_mode: str = "human_ai"
     ai_x: str = "minimax"
     ai_o: str = "alphabeta"
-    ai_depth: int = 2
+    minimax_depth: int = 2
+    alphabeta_depth: int = 2
     ai_delay_ms: int = 350
 
     def validate(self) -> "GameSettings":
@@ -71,7 +72,8 @@ class GameSettings:
         self.cols = max(3, min(24, int(self.cols)))
         max_win = min(8, self.rows, self.cols)
         self.win_length = max(3, min(max_win, int(self.win_length)))
-        self.ai_depth = max(1, min(4, int(self.ai_depth)))
+        self.minimax_depth = max(1, min(4, int(self.minimax_depth)))
+        self.alphabeta_depth = max(1, min(4, int(self.alphabeta_depth)))
         self.ai_delay_ms = max(0, min(2000, int(self.ai_delay_ms)))
 
         if self.match_mode not in MATCH_MODES:
@@ -90,6 +92,10 @@ class GameSettings:
         """Chỉ nhận các khóa đã biết để tương thích với file cũ."""
         allowed = cls.__dataclass_fields__.keys()
         values = {key: value for key, value in data.items() if key in allowed}
+        legacy_depth = data.get("ai_depth")
+        if legacy_depth is not None:
+            values.setdefault("minimax_depth", legacy_depth)
+            values.setdefault("alphabeta_depth", legacy_depth)
         try:
             return cls(**values).validate()
         except (TypeError, ValueError):

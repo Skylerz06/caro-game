@@ -78,7 +78,7 @@ class MenuScreen:
         )
         draw_text(
             surface,
-            "AI LAB",
+            "",
             30,
             COLORS["primary"],
             (SCREEN_WIDTH // 2, 215),
@@ -106,7 +106,7 @@ class MenuScreen:
 
         draw_text(
             surface,
-            "University AI Project  •  Pygame",
+            "Pygame",
             13,
             COLORS["muted"],
             (SCREEN_WIDTH // 2, 648),

@@ -14,7 +14,7 @@ SETTINGS_FILE = ROOT_DIR / "utils" / "settings.json"
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 800
 FPS = 60
-WINDOW_TITLE = "Caro AI Lab - Gomoku m,n,k"
+WINDOW_TITLE = "Caro Game"
 
 ALGORITHMS = ("greedy", "minimax", "alphabeta")
 ALGORITHM_LABELS = {

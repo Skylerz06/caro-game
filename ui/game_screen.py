@@ -898,7 +898,7 @@ class GameScreen:
         self.settings_button.draw(surface)
         draw_text(
             surface,
-            "CARO AI LAB",
+            "CARO",
             26,
             COLORS["text"],
             (162, 21),

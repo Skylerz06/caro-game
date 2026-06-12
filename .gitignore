@@ -219,3 +219,7 @@ __marimo__/
 
 # Local Caro game preferences
 utils/settings.json
+
+# Local Caro match history
+utils/match_history.json
+utils/match_history.json.tmp

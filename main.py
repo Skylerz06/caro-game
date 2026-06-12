@@ -9,6 +9,8 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
 import pygame
 
+from game.history_store import MatchHistoryStore
+
 from config.settings import (
     FPS,
     SCREEN_HEIGHT,
@@ -20,6 +22,7 @@ from config.settings import (
 from ui.game_screen import GameScreen
 from ui.history_screen import HistoryScreen
 from ui.menu import MenuScreen
+from ui.replay_screen import ReplayScreen
 from ui.settings_screen import SettingsScreen
 
 
@@ -29,24 +32,27 @@ class App:
     def __init__(self) -> None:
         pygame.init()
         pygame.display.set_caption(WINDOW_TITLE)
-        self.surface = pygame.display.set_mode(
-            (SCREEN_WIDTH, SCREEN_HEIGHT)
-        )
+        self.surface = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         self.clock = pygame.time.Clock()
         self.running = True
 
         self.settings = load_settings()
+        self.history_store = MatchHistoryStore()
+        self.match_history = self.history_store.load()
         self.menu_screen = MenuScreen()
         self.settings_screen = SettingsScreen()
         self.history_screen = HistoryScreen()
-        self.game_screen = GameScreen(self.settings)
+        self.replay_screen = ReplayScreen()
+        self.game_screen = GameScreen(
+            self.settings,
+            self.match_history,
+            self.history_store,
+        )
         self.current_screen = "menu"
         self.settings_return_screen = "menu"
         self.history_return_screen = "menu"
 
-    def _open_settings(
-        self, return_screen: str, focus_ai: bool = False
-    ) -> None:
+    def _open_settings(self, return_screen: str, focus_ai: bool = False) -> None:
         self.settings_return_screen = return_screen
         self.settings_screen.open(self.settings, focus_ai)
         self.current_screen = "settings"
@@ -91,9 +97,16 @@ class App:
         elif action == "settings":
             self._open_settings("game")
 
-    def _handle_history_action(self, action: str | None) -> None:
+    def _handle_history_action(self, action) -> None:
         if action == "back":
             self.current_screen = self.history_return_screen
+        elif isinstance(action, tuple) and action[0] == "replay":
+            self.replay_screen.open(action[1])
+            self.current_screen = "replay"
+
+    def _handle_replay_action(self, action: str | None) -> None:
+        if action == "back":
+            self.current_screen = "history"
 
     def _handle_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.QUIT:
@@ -106,6 +119,8 @@ class App:
                 self.current_screen = self.settings_return_screen
             elif self.current_screen == "history":
                 self.current_screen = self.history_return_screen
+            elif self.current_screen == "replay":
+                self.current_screen = "history"
             else:
                 self.current_screen = "menu"
             return
@@ -113,17 +128,13 @@ class App:
         if self.current_screen == "menu":
             self._handle_menu_action(self.menu_screen.handle_event(event))
         elif self.current_screen == "settings":
-            self._handle_settings_action(
-                self.settings_screen.handle_event(event)
-            )
+            self._handle_settings_action(self.settings_screen.handle_event(event))
         elif self.current_screen == "history":
-            self._handle_history_action(
-                self.history_screen.handle_event(event)
-            )
+            self._handle_history_action(self.history_screen.handle_event(event))
+        elif self.current_screen == "replay":
+            self._handle_replay_action(self.replay_screen.handle_event(event))
         elif self.current_screen == "game":
-            self._handle_game_action(
-                self.game_screen.handle_event(event)
-            )
+            self._handle_game_action(self.game_screen.handle_event(event))
 
     def run(self) -> None:
         while self.running:
@@ -139,6 +150,9 @@ class App:
             elif self.current_screen == "history":
                 self.history_screen.update()
                 self.history_screen.draw(self.surface)
+            elif self.current_screen == "replay":
+                self.replay_screen.update()
+                self.replay_screen.draw(self.surface)
             else:
                 self.game_screen.update()
                 self.game_screen.draw(self.surface)

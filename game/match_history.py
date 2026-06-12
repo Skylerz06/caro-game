@@ -1,9 +1,10 @@
-"""Bản ghi metric từng nước và tổng kết trận đấu."""
+"""Bản ghi metric từng nước và dữ liệu replay của trận đấu."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from game.state import GameState, Move
 from utils.helpers import SearchAnalysis, SearchMetrics
 
 
@@ -40,7 +41,7 @@ def metric_record_for_view(
 
 @dataclass(frozen=True)
 class MatchHistoryRecord:
-    """Tổng kết một ván đã kết thúc trong phiên chạy hiện tại."""
+    """Tổng kết và dữ liệu đầy đủ của một ván đã kết thúc."""
 
     number: int
     timestamp: str
@@ -55,6 +56,16 @@ class MatchHistoryRecord:
     total_nodes: int
     total_pruned: int
     ai_move_count: int
+    rows: int = 0
+    cols: int = 0
+    win_length: int = 0
+    match_mode: str = "human_human"
+    ai_x_key: str = "minimax"
+    ai_o_key: str = "alphabeta"
+    winner: int = 0
+    is_draw: bool = False
+    moves: tuple[Move, ...] = ()
+    move_metrics: tuple[MoveMetricRecord, ...] = ()
 
     @property
     def average_time_ms(self) -> float:
@@ -85,3 +96,26 @@ class MatchHistoryRecord:
             f"{self.average_nodes:.1f} nodes/move | "
             f"{self.total_pruned:,} pruned"
         )
+
+    @property
+    def metrics_by_move(self) -> dict[int, MoveMetricRecord]:
+        return {record.move_number: record for record in self.move_metrics}
+
+    def build_state(self) -> GameState:
+        """Dựng lại trạng thái cuối trận và xác thực chuỗi nước đi."""
+        if self.rows <= 0 or self.cols <= 0 or self.win_length <= 0:
+            raise ValueError("Kích thước replay không hợp lệ.")
+        state = GameState(self.rows, self.cols, self.win_length)
+        for expected_number, move in enumerate(self.moves, start=1):
+            if move.number != expected_number:
+                raise ValueError("Số thứ tự nước đi không liên tục.")
+            if state.current_player != move.player:
+                raise ValueError("Thứ tự người chơi trong replay không hợp lệ.")
+            if not state.play_move(move.row, move.col):
+                raise ValueError("Replay chứa nước đi không hợp lệ.")
+        return state
+
+
+def next_match_number(records: list[MatchHistoryRecord]) -> int:
+    """Sinh số trận tiếp theo, kể cả khi file có khoảng trống."""
+    return max((record.number for record in records), default=0) + 1

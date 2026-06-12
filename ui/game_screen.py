@@ -12,10 +12,12 @@ from ai import create_ai
 from ai.base import GameAI
 from config.settings import COLORS, MATCH_MODE_LABELS, GameSettings
 from game.board import Board, PLAYER_O, PLAYER_X
+from game.history_store import MatchHistoryStore
 from game.match_history import (
     MatchHistoryRecord,
     MoveMetricRecord,
     metric_record_for_view,
+    next_match_number,
 )
 from game.state import GameState
 from ui.board_view import BoardView
@@ -32,8 +34,14 @@ class GameScreen:
     HISTORY_PANEL = pygame.Rect(24, 724, 1232, 58)
     RESULT_NOTICE_MS = 5000
 
-    def __init__(self, settings: GameSettings) -> None:
+    def __init__(
+        self,
+        settings: GameSettings,
+        match_history: list[MatchHistoryRecord] | None = None,
+        history_store: MatchHistoryStore | None = None,
+    ) -> None:
         self.settings = settings
+        self.history_store = history_store
         self.board_view = BoardView()
         self.metrics_panel = MetricsPanel()
         self.state = GameState(settings.rows, settings.cols, settings.win_length)
@@ -50,7 +58,8 @@ class GameScreen:
         self.game_seed = 0
         self.move_metrics: dict[int, MoveMetricRecord] = {}
         self.current_summary: MatchHistoryRecord | None = None
-        self.match_history: list[MatchHistoryRecord] = []
+        self.match_history = match_history if match_history is not None else []
+        self.history_error = ""
         self.game_total_time_ms = 0.0
         self.game_total_nodes = 0
         self.game_total_pruned = 0
@@ -90,6 +99,7 @@ class GameScreen:
         self.last_action_time = pygame.time.get_ticks()
         self.result_recorded = False
         self.ai_error = ""
+        self.history_error = ""
         self.move_metrics = {}
         self.current_summary = None
         self.game_total_time_ms = 0.0
@@ -123,6 +133,7 @@ class GameScreen:
         self.last_action_time = pygame.time.get_ticks()
         self.result_recorded = False
         self.ai_error = ""
+        self.history_error = ""
         self.move_metrics = {}
         self.current_summary = None
         self.game_total_time_ms = 0.0
@@ -362,8 +373,8 @@ class GameScreen:
         else:
             result = f"{player_label(self.state.winner)} thắng"
         self.current_summary = MatchHistoryRecord(
-            number=len(self.match_history) + 1,
-            timestamp=datetime.now().strftime("%H:%M:%S"),
+            number=next_match_number(self.match_history),
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             mode_label=MATCH_MODE_LABELS[self.settings.match_mode],
             board_label=(
                 f"{self.settings.rows}x{self.settings.cols}, "
@@ -378,8 +389,26 @@ class GameScreen:
             total_nodes=self.game_total_nodes,
             total_pruned=self.game_total_pruned,
             ai_move_count=self.game_ai_moves,
+            rows=self.settings.rows,
+            cols=self.settings.cols,
+            win_length=self.settings.win_length,
+            match_mode=self.settings.match_mode,
+            ai_x_key=self.settings.ai_x,
+            ai_o_key=self.settings.ai_o,
+            winner=self.state.winner,
+            is_draw=self.state.is_draw,
+            moves=tuple(self.state.history),
+            move_metrics=tuple(
+                self.move_metrics[number] for number in sorted(self.move_metrics)
+            ),
         )
         self.match_history.append(self.current_summary)
+        self.history_error = ""
+        if self.history_store is not None:
+            try:
+                self.history_store.save(self.match_history)
+            except OSError as exc:
+                self.history_error = str(exc)
         self.result_notice_started_at = pygame.time.get_ticks()
         self.result_recorded = True
 
@@ -507,6 +536,7 @@ class GameScreen:
                 current_summary=self.current_summary,
                 is_ai_thinking=self.is_ai_thinking,
                 ai_error=self.ai_error,
+                history_error=self.history_error,
                 game_seed=self.game_seed,
             ),
         )

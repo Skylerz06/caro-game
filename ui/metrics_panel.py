@@ -38,6 +38,7 @@ class MetricsPanelContext:
     current_summary: MatchHistoryRecord | None
     is_ai_thinking: bool
     ai_error: str
+    history_error: str
     game_seed: int
 
 
@@ -303,10 +304,12 @@ class MetricsPanel:
                 COLORS["muted"],
                 (904, 663),
             )
-        if context.ai_error:
+        if context.ai_error or context.history_error:
+            error = context.ai_error or context.history_error
+            prefix = "AI error" if context.ai_error else "History error"
             draw_text(
                 surface,
-                f"AI error: {context.ai_error[:36]}",
+                f"{prefix}: {error[:32]}",
                 11,
                 COLORS["danger"],
                 (904, 683),

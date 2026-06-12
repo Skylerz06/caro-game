@@ -123,6 +123,7 @@ class BoardView:
         show_analysis: bool = False,
         analysis: SearchAnalysis | None = None,
         mouse_position: tuple[int, int] | None = None,
+        show_result_notice: bool = True,
     ) -> None:
         """Vẽ bàn cờ trực tiếp hoặc tại một mốc lịch sử."""
         draw_panel(
@@ -209,7 +210,7 @@ class BoardView:
             self._draw_analysis_status(surface, board_rect, analysis)
 
         notice_age = pygame.time.get_ticks() - result_notice_started_at
-        show_result_notice = (
+        show_result_notice = show_result_notice and (
             state.game_over
             and review_index == len(state.history)
             and (result_notice_started_at == 0 or notice_age <= result_notice_ms)

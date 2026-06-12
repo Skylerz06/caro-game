@@ -38,6 +38,7 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 │   └── settings.py
 ├── game/
 │   ├── board.py
+│   ├── history_store.py
 │   ├── match_history.py
 │   ├── rules.py
 │   └── state.py
@@ -54,12 +55,14 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 │   ├── history_screen.py
 │   ├── menu.py
 │   ├── metrics_panel.py
+│   ├── replay_screen.py
 │   └── settings_screen.py
 ├── experiments/
 │   └── evaluate.py
 └── utils/
     ├── helpers.py
     ├── seedmaker.py
+    ├── match_history.json
     └── settings.json
 ```
 
@@ -70,6 +73,7 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 | `main.py` | Khởi tạo Pygame, vòng lặp chính và chuyển màn hình |
 | `config/settings.py` | Hằng số UI, dataclass cấu hình và lưu JSON |
 | `game/board.py` | Ma trận bàn cờ, đặt/xóa quân, sinh nước ứng viên |
+| `game/history_store.py` | Đọc/ghi lịch sử trận đấu JSON theo schema có kiểm tra |
 | `game/match_history.py` | Bản ghi metric theo nước và tổng kết trận |
 | `game/rules.py` | Kiểm tra chuỗi thắng ngang, dọc và hai đường chéo |
 | `game/state.py` | Lượt chơi, kết quả, lịch sử và dựng bàn cờ xem lại |
@@ -80,7 +84,8 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 | `ui/board_view.py` | Hình học, ánh xạ click và render bàn cờ động |
 | `ui/metrics_panel.py` | Tổng hợp và hiển thị metrics theo lượt/trận |
 | `ui/menu.py` | Menu trước trận đấu |
-| `ui/history_screen.py` | Xem lịch sử các ván đã kết thúc trong phiên chạy |
+| `ui/history_screen.py` | Phân trang lịch sử các ván đã lưu và chọn trận replay |
+| `ui/replay_screen.py` | Dựng lại bàn cờ và metrics của từng nước trong trận cũ |
 | `ui/settings_screen.py` | Cấu hình m,n,k, mode, AI và depth |
 | `ui/game_screen.py` | Điều phối trận đấu, AI, input và move history |
 | `experiments/evaluate.py` | Benchmark AI vs AI trên terminal |
@@ -115,6 +120,13 @@ Rê chuột lên một ô để xem tọa độ, điểm, thứ hạng, trạng 
 nhánh bị cắt trong cây con. Ở `LIVE`, heatmap dùng lượt AI gần nhất; ở `REVIEW`,
 nó dùng đúng snapshot của nước đang chọn. Tùy chọn này chỉ tồn tại trong phiên
 chạy và không được lưu vào `settings.json`.
+
+Mỗi ván kết thúc được tự động lưu vào `utils/match_history.json`. Bản ghi gồm
+cấu hình `m,n,k`, seed, kết quả, toàn bộ nước đi, metrics và dữ liệu heatmap của
+từng lượt AI. Mở `LỊCH SỬ` từ menu hoặc màn hình game, chọn `XEM LẠI`, rồi dùng
+hai nút mũi tên để dựng lại trạng thái bàn cờ từng bước. File lịch sử là dữ liệu
+local và được loại khỏi Git; nếu file hỏng hoặc sai schema, game bỏ qua dữ liệu
+không hợp lệ thay vì làm gián đoạn quá trình khởi động.
 
 ## Thuật toán
 

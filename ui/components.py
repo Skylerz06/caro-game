@@ -18,9 +18,7 @@ class FontCache:
     def get(cls, size: int, bold: bool = False) -> pygame.font.Font:
         key = (size, bold)
         if key not in cls._fonts:
-            font_name = pygame.font.match_font(
-                "segoeui,arial,dejavusans", bold=bold
-            )
+            font_name = pygame.font.match_font("segoeui,arial,dejavusans", bold=bold)
             cls._fonts[key] = pygame.font.Font(font_name, size)
         return cls._fonts[key]
 
@@ -42,20 +40,50 @@ def draw_text(
     return rect
 
 
+class GradientCache:
+    """Cache nền gradient theo kích thước và bảng màu."""
+
+    _surfaces: dict[
+        tuple[tuple[int, int], tuple[int, int, int], tuple[int, int, int]],
+        pygame.Surface,
+    ] = {}
+
+    @classmethod
+    def get(
+        cls,
+        size: tuple[int, int],
+        top_color: tuple[int, int, int],
+        bottom_color: tuple[int, int, int],
+    ) -> pygame.Surface:
+        key = (size, top_color, bottom_color)
+        if key not in cls._surfaces:
+            width, height = size
+            gradient = pygame.Surface(size)
+            for y in range(0, height, 3):
+                ratio = y / max(1, height - 1)
+                color = tuple(
+                    int(top + (bottom - top) * ratio)
+                    for top, bottom in zip(top_color, bottom_color)
+                )
+                pygame.draw.rect(gradient, color, (0, y, width, 3))
+            cls._surfaces[key] = gradient
+        return cls._surfaces[key]
+
+    @classmethod
+    def clear(cls) -> None:
+        cls._surfaces.clear()
+
+
 def draw_gradient(
     surface: pygame.Surface,
     top_color: tuple[int, int, int],
     bottom_color: tuple[int, int, int],
 ) -> None:
-    """Nền chuyển màu dọc, đủ nhẹ để vẽ mỗi frame."""
-    width, height = surface.get_size()
-    for y in range(0, height, 3):
-        ratio = y / max(1, height - 1)
-        color = tuple(
-            int(top + (bottom - top) * ratio)
-            for top, bottom in zip(top_color, bottom_color)
-        )
-        pygame.draw.rect(surface, color, (0, y, width, 3))
+    """Vẽ nền chuyển màu từ cache thay vì dựng lại mỗi frame."""
+    surface.blit(
+        GradientCache.get(surface.get_size(), top_color, bottom_color),
+        (0, 0),
+    )
 
 
 def draw_panel(
@@ -69,9 +97,7 @@ def draw_panel(
 ) -> None:
     if shadow:
         shadow_rect = rect.move(0, 7)
-        pygame.draw.rect(
-            surface, (9, 15, 29), shadow_rect, border_radius=radius
-        )
+        pygame.draw.rect(surface, (9, 15, 29), shadow_rect, border_radius=radius)
     pygame.draw.rect(surface, color, rect, border_radius=radius)
     if border_color:
         pygame.draw.rect(
@@ -83,6 +109,16 @@ def draw_panel(
         )
 
 
+def is_left_click(
+    event: pygame.event.Event,
+    rect: pygame.Rect | None = None,
+) -> bool:
+    """Kiểm tra sự kiện nhả chuột trái, tùy chọn giới hạn trong rect."""
+    if event.type != pygame.MOUSEBUTTONUP or event.button != 1:
+        return False
+    return rect is None or rect.collidepoint(event.pos)
+
+
 @dataclass
 class Button:
     rect: pygame.Rect
@@ -92,17 +128,10 @@ class Button:
     enabled: bool = True
 
     def handle_event(self, event: pygame.event.Event) -> bool:
-        return bool(
-            self.enabled
-            and event.type == pygame.MOUSEBUTTONUP
-            and event.button == 1
-            and self.rect.collidepoint(event.pos)
-        )
+        return self.enabled and is_left_click(event, self.rect)
 
     def draw(self, surface: pygame.Surface) -> None:
-        hovered = self.enabled and self.rect.collidepoint(
-            pygame.mouse.get_pos()
-        )
+        hovered = self.enabled and self.rect.collidepoint(pygame.mouse.get_pos())
         if not self.enabled:
             color = (51, 65, 85)
             text_color = (100, 116, 139)
@@ -146,87 +175,102 @@ class IconButton:
     tooltip: str = ""
 
     def handle_event(self, event: pygame.event.Event) -> bool:
-        return bool(
-            self.enabled
-            and event.type == pygame.MOUSEBUTTONUP
-            and event.button == 1
-            and self.rect.collidepoint(event.pos)
-        )
+        return self.enabled and is_left_click(event, self.rect)
 
     def draw(self, surface: pygame.Surface) -> None:
-        hovered = self.enabled and self.rect.collidepoint(
-            pygame.mouse.get_pos()
-        )
+        hovered = self.enabled and self.rect.collidepoint(pygame.mouse.get_pos())
         color = COLORS["panel_light"] if self.enabled else (43, 53, 70)
         if hovered:
             color = (51, 75, 110)
         pygame.draw.rect(surface, color, self.rect, border_radius=12)
         icon_color = COLORS["text"] if self.enabled else (100, 116, 139)
-        center = self.rect.center
+        center_x, center_y = self.rect.center
 
-        if self.icon == "left":
+        if self.icon in ("left", "right"):
+            direction = -1 if self.icon == "left" else 1
             points = [
-                (center[0] + 5, center[1] - 9),
-                (center[0] - 5, center[1]),
-                (center[0] + 5, center[1] + 9),
-            ]
-            pygame.draw.lines(surface, icon_color, False, points, 3)
-        elif self.icon == "right":
-            points = [
-                (center[0] - 5, center[1] - 9),
-                (center[0] + 5, center[1]),
-                (center[0] - 5, center[1] + 9),
+                (center_x - direction * 5, center_y - 9),
+                (center_x + direction * 5, center_y),
+                (center_x - direction * 5, center_y + 9),
             ]
             pygame.draw.lines(surface, icon_color, False, points, 3)
         elif self.icon == "gear":
-            pygame.draw.circle(surface, icon_color, center, 10, 3)
-            pygame.draw.circle(surface, icon_color, center, 3)
+            pygame.draw.circle(surface, icon_color, self.rect.center, 10, 3)
+            pygame.draw.circle(surface, icon_color, self.rect.center, 3)
             for angle in range(0, 360, 45):
                 vector = pygame.Vector2(0, -14).rotate(angle)
-                end = (center[0] + vector.x, center[1] + vector.y)
-                pygame.draw.line(surface, icon_color, center, end, 3)
-        elif self.icon == "restart":
-            pygame.draw.arc(
-                surface,
-                icon_color,
-                self.rect.inflate(-17, -17),
-                0.35,
-                5.7,
-                3,
-            )
-            pygame.draw.polygon(
-                surface,
-                icon_color,
-                [
-                    (center[0] - 12, center[1] - 7),
-                    (center[0] - 3, center[1] - 10),
-                    (center[0] - 5, center[1] - 1),
-                ],
-            )
+                end = (center_x + vector.x, center_y + vector.y)
+                pygame.draw.line(surface, icon_color, self.rect.center, end, 3)
 
         if hovered and self.tooltip:
-            tip_rect = draw_text(
-                surface,
-                self.tooltip,
-                13,
-                COLORS["text"],
-                (self.rect.centerx, self.rect.bottom + 9),
-                anchor="midtop",
+            image = FontCache.get(13).render(self.tooltip, True, COLORS["text"])
+            tip_rect = image.get_rect(
+                midtop=(self.rect.centerx, self.rect.bottom + 9)
             )
             background = tip_rect.inflate(14, 8)
-            pygame.draw.rect(
-                surface, COLORS["black"], background, border_radius=7
-            )
-            surface.blit(
-                FontCache.get(13).render(
-                    self.tooltip, True, COLORS["text"]
-                ),
-                tip_rect,
-            )
+            pygame.draw.rect(surface, COLORS["black"], background, border_radius=7)
+            surface.blit(image, tip_rect)
 
 
-class Stepper:
-    """Điều khiển số nguyên bằng nút trừ/cộng."""
+class _ValueControl:
+    """Shared frame for controls with two value buttons."""
+
+    value_size = 18
+
+    def __init__(self, rect: pygame.Rect, label: str) -> None:
+        self.rect = rect
+        self.label = label
+        self.enabled = True
+        self.left_rect = pygame.Rect(rect.left + 12, rect.bottom - 42, 42, 32)
+        self.right_rect = pygame.Rect(rect.right - 54, rect.bottom - 42, 42, 32)
+
+    def handle_event(self, event: pygame.event.Event) -> bool:
+        if not self.enabled or not is_left_click(event):
+            return False
+        if self.left_rect.collidepoint(event.pos):
+            return self._change(-1)
+        if self.right_rect.collidepoint(event.pos):
+            return self._change(1)
+        return False
+
+    def draw(self, surface: pygame.Surface) -> None:
+        base = COLORS["panel_light"] if self.enabled else (38, 48, 65)
+        pygame.draw.rect(surface, base, self.rect, border_radius=14)
+        draw_text(
+            surface,
+            self.label,
+            15,
+            COLORS["muted"] if self.enabled else (85, 97, 116),
+            (self.rect.left + 14, self.rect.top + 10),
+            bold=True,
+        )
+        self._draw_controls(surface)
+        draw_text(
+            surface,
+            self.value_text,
+            self.value_size,
+            COLORS["text"] if self.enabled else (100, 116, 139),
+            (self.rect.centerx, self.left_rect.centery),
+            bold=True,
+            anchor="center",
+        )
+
+    def _draw_controls(self, surface: pygame.Surface) -> None:
+        for rect, icon in ((self.left_rect, "left"), (self.right_rect, "right")):
+            IconButton(rect, icon, self.enabled).draw(surface)
+
+    def _change(self, direction: int) -> bool:
+        raise NotImplementedError
+
+    @property
+    def value_text(self) -> str:
+        raise NotImplementedError
+
+
+class Stepper(_ValueControl):
+    """Integer control using minus and plus buttons."""
+
+    value_size = 23
 
     def __init__(
         self,
@@ -237,50 +281,31 @@ class Stepper:
         maximum: int,
         suffix: str = "",
     ) -> None:
-        self.rect = rect
-        self.label = label
+        super().__init__(rect, label)
         self.value = value
         self.minimum = minimum
         self.maximum = maximum
         self.suffix = suffix
-        self.minus_rect = pygame.Rect(
-            rect.left + 12, rect.bottom - 42, 42, 32
-        )
-        self.plus_rect = pygame.Rect(
-            rect.right - 54, rect.bottom - 42, 42, 32
-        )
+        self.minus_rect = self.left_rect
+        self.plus_rect = self.right_rect
 
-    def handle_event(self, event: pygame.event.Event) -> bool:
-        if event.type != pygame.MOUSEBUTTONUP or event.button != 1:
-            return False
+    def _change(self, direction: int) -> bool:
         old_value = self.value
-        if self.minus_rect.collidepoint(event.pos):
-            self.value = max(self.minimum, self.value - 1)
-        elif self.plus_rect.collidepoint(event.pos):
-            self.value = min(self.maximum, self.value + 1)
+        self.value = min(self.maximum, max(self.minimum, self.value + direction))
         return old_value != self.value
 
-    def draw(self, surface: pygame.Surface) -> None:
-        pygame.draw.rect(
-            surface, COLORS["panel_light"], self.rect, border_radius=14
-        )
-        draw_text(
-            surface,
-            self.label,
-            15,
-            COLORS["muted"],
-            (self.rect.left + 14, self.rect.top + 10),
-            bold=True,
-        )
+    @property
+    def value_text(self) -> str:
+        return f"{self.value}{self.suffix}"
+
+    def _draw_controls(self, surface: pygame.Surface) -> None:
         for control_rect, symbol in (
-            (self.minus_rect, "-"),
-            (self.plus_rect, "+"),
+            (self.left_rect, "-"),
+            (self.right_rect, "+"),
         ):
             hovered = control_rect.collidepoint(pygame.mouse.get_pos())
             color = (57, 78, 110) if hovered else (45, 62, 91)
-            pygame.draw.rect(
-                surface, color, control_rect, border_radius=9
-            )
+            pygame.draw.rect(surface, color, control_rect, border_radius=9)
             draw_text(
                 surface,
                 symbol,
@@ -290,20 +315,10 @@ class Stepper:
                 bold=True,
                 anchor="center",
             )
-        value_text = f"{self.value}{self.suffix}"
-        draw_text(
-            surface,
-            value_text,
-            23,
-            COLORS["text"],
-            (self.rect.centerx, self.minus_rect.centery),
-            bold=True,
-            anchor="center",
-        )
 
 
-class ChoiceSelector:
-    """Chọn một giá trị bằng hai mũi tên trái/phải."""
+class ChoiceSelector(_ValueControl):
+    """Cycle through choices with left and right buttons."""
 
     def __init__(
         self,
@@ -312,18 +327,10 @@ class ChoiceSelector:
         options: list[tuple[str, str]],
         selected: str,
     ) -> None:
-        self.rect = rect
-        self.label = label
+        super().__init__(rect, label)
         self.options = options
-        self.enabled = True
         values = [value for value, _ in options]
         self.index = values.index(selected) if selected in values else 0
-        self.left_rect = pygame.Rect(
-            rect.left + 12, rect.bottom - 42, 42, 32
-        )
-        self.right_rect = pygame.Rect(
-            rect.right - 54, rect.bottom - 42, 42, 32
-        )
 
     @property
     def selected(self) -> str:
@@ -339,46 +346,14 @@ class ChoiceSelector:
     def selected_label(self) -> str:
         return self.options[self.index][1]
 
-    def handle_event(self, event: pygame.event.Event) -> bool:
-        if (
-            not self.enabled
-            or event.type != pygame.MOUSEBUTTONUP
-            or event.button != 1
-        ):
-            return False
-        old_index = self.index
-        if self.left_rect.collidepoint(event.pos):
-            self.index = (self.index - 1) % len(self.options)
-        elif self.right_rect.collidepoint(event.pos):
-            self.index = (self.index + 1) % len(self.options)
-        return old_index != self.index
+    @property
+    def value_text(self) -> str:
+        return self.selected_label
 
-    def draw(self, surface: pygame.Surface) -> None:
-        base = COLORS["panel_light"] if self.enabled else (38, 48, 65)
-        pygame.draw.rect(surface, base, self.rect, border_radius=14)
-        label_color = COLORS["muted"] if self.enabled else (85, 97, 116)
-        draw_text(
-            surface,
-            self.label,
-            15,
-            label_color,
-            (self.rect.left + 14, self.rect.top + 10),
-            bold=True,
-        )
-        for control_rect, icon in (
-            (self.left_rect, "left"),
-            (self.right_rect, "right"),
-        ):
-            IconButton(control_rect, icon, self.enabled).draw(surface)
-        draw_text(
-            surface,
-            self.selected_label,
-            18,
-            COLORS["text"] if self.enabled else (100, 116, 139),
-            (self.rect.centerx, self.left_rect.centery),
-            bold=True,
-            anchor="center",
-        )
+    def _change(self, direction: int) -> bool:
+        old_index = self.index
+        self.index = (self.index + direction) % len(self.options)
+        return old_index != self.index
 
 
 def draw_metric_card(
@@ -390,9 +365,7 @@ def draw_metric_card(
     value_color: tuple[int, int, int] | None = None,
     note: str = "",
 ) -> None:
-    pygame.draw.rect(
-        surface, COLORS["panel_light"], rect, border_radius=13
-    )
+    pygame.draw.rect(surface, COLORS["panel_light"], rect, border_radius=13)
     draw_text(
         surface,
         label.upper(),
@@ -418,4 +391,3 @@ def draw_metric_card(
             (rect.right - 12, rect.bottom - 10),
             anchor="bottomright",
         )
-

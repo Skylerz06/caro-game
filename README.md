@@ -8,8 +8,8 @@ ba thuật toán AI và giao diện trực quan phục vụ báo cáo môn Trí 
 Project tách thành bốn lớp chính:
 
 - `game`: mô hình bàn cờ, luật thắng và trạng thái/lịch sử; không phụ thuộc UI.
-- `ai`: Greedy, Minimax và Alpha-Beta dùng chung heuristic và metrics.
-- `ui`: component Pygame, menu, settings và màn hình thi đấu.
+- `ai`: Greedy, Minimax và Alpha-Beta dùng chung heuristic, root-search helper và metrics.
+- `ui`: component Pygame, menu, settings, move-history bar và các màn hình.
 - `experiments`: chạy AI vs AI trên terminal để so sánh thời gian, node và win rate.
 
 `main.py` chỉ điều phối vòng lặp Pygame và chuyển màn hình. Cấu hình được kiểm
@@ -22,9 +22,9 @@ tra bởi `GameSettings` và lưu trong `utils/settings.json`.
 3. Cài Greedy một lớp, Minimax giới hạn độ sâu và Alpha-Beta có cắt tỉa.
 4. Xây component UI, menu, settings, game screen và bộ xem lại lịch sử.
 5. Ghép các màn hình trong vòng lặp `App`, sau đó lưu/đọc cấu hình JSON.
-6. Tạo chương trình AI vs AI và kiểm thử luật, chiến thuật, render headless.
+6. Tạo chương trình AI vs AI và đánh giá luật, chiến thuật, render headless.
 
-Thứ tự này cho phép kiểm thử thuật toán không cần mở giao diện, đồng thời giữ
+Thứ tự này cho phép đánh giá thuật toán không cần mở giao diện, đồng thời giữ
 phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 
 ## Cấu trúc thư mục
@@ -40,6 +40,7 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 │   ├── board.py
 │   ├── history_store.py
 │   ├── match_history.py
+│   ├── metrics.py
 │   ├── rules.py
 │   └── state.py
 ├── ai/
@@ -47,7 +48,8 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 │   ├── base.py
 │   ├── greedy.py
 │   ├── minimax.py
-│   └── alphabeta.py
+│   ├── alphabeta.py
+│   └── search_helpers.py
 ├── ui/
 │   ├── board_view.py
 │   ├── components.py
@@ -55,6 +57,7 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 │   ├── history_screen.py
 │   ├── menu.py
 │   ├── metrics_panel.py
+│   ├── move_history_bar.py
 │   ├── replay_screen.py
 │   └── settings_screen.py
 ├── experiments/
@@ -75,14 +78,17 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 | `game/board.py` | Ma trận bàn cờ, đặt/xóa quân, sinh nước ứng viên |
 | `game/history_store.py` | Đọc/ghi lịch sử trận đấu JSON theo schema có kiểm tra |
 | `game/match_history.py` | Bản ghi metric theo nước và tổng kết trận |
+| `game/metrics.py` | Cộng dồn search metrics và khởi tạo session stats |
 | `game/rules.py` | Kiểm tra chuỗi thắng ngang, dọc và hai đường chéo |
 | `game/state.py` | Lượt chơi, kết quả, lịch sử và dựng bàn cờ xem lại |
 | `ai/greedy.py` | Tìm kiếm tham lam một lớp |
 | `ai/minimax.py` | Minimax giới hạn độ sâu |
 | `ai/alphabeta.py` | Minimax có cắt tỉa Alpha-Beta |
-| `ui/components.py` | Button, selector, stepper, font và panel |
+| `ai/search_helpers.py` | Root tracker và terminal evaluation dùng chung cho AI |
+| `ui/components.py` | Button, selector, stepper, font, panel và cache gradient |
 | `ui/board_view.py` | Hình học, ánh xạ click và render bàn cờ động |
-| `ui/metrics_panel.py` | Tổng hợp và hiển thị metrics theo lượt/trận |
+| `ui/metrics_panel.py` | Dựng view-model và hiển thị metrics theo lượt/trận |
+| `ui/move_history_bar.py` | Điều hướng review và toggle phân tích dùng chung |
 | `ui/menu.py` | Menu trước trận đấu |
 | `ui/history_screen.py` | Phân trang lịch sử các ván đã lưu và chọn trận replay |
 | `ui/replay_screen.py` | Dựng lại bàn cờ và metrics của từng nước trong trận cũ |

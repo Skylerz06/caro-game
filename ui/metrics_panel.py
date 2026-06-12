@@ -42,28 +42,25 @@ class MetricsPanelContext:
     game_seed: int
 
 
+@dataclass(frozen=True)
+class MetricCardData:
+    label: str
+    value: str
+    color: tuple[int, int, int]
+    note: str = ""
+
+
+@dataclass(frozen=True)
+class MetricsPanelView:
+    status: str
+    status_color: tuple[int, int, int]
+    cards: tuple[MetricCardData, ...]
+
+
 class MetricsPanel:
     """Tổng hợp và hiển thị metric mà không điều khiển trận đấu."""
 
     RECT = pygame.Rect(884, 90, 372, 620)
-
-    @staticmethod
-    def _depth_for_ai(settings: GameSettings, ai: GameAI) -> int:
-        if ai.key == "minimax":
-            return settings.minimax_depth
-        if ai.key == "alphabeta":
-            return settings.alphabeta_depth
-        return 1
-
-    @staticmethod
-    def _metric_record(
-        context: MetricsPanelContext,
-    ) -> MoveMetricRecord | None:
-        return metric_record_for_view(
-            context.move_metrics,
-            context.review_index,
-            len(context.state.history),
-        )
 
     @staticmethod
     def _metric_player(
@@ -72,61 +69,44 @@ class MetricsPanel:
     ) -> int | None:
         if record is not None:
             return record.player
-        if context.state.current_player in context.ai_players:
-            return context.state.current_player
-        if context.last_ai_player is not None:
-            return context.last_ai_player
-        if context.ai_players:
-            return next(iter(context.ai_players))
-        return None
+        player = context.state.current_player
+        if player in context.ai_players:
+            return player
+        return context.last_ai_player or next(iter(context.ai_players), None)
 
-    def draw(
-        self,
-        surface: pygame.Surface,
+    @staticmethod
+    def _status(
         context: MetricsPanelContext,
-    ) -> None:
+    ) -> tuple[str, tuple[int, int, int]]:
+        state = context.state
+        if context.review_index != len(state.history):
+            return "ĐANG XEM LẠI", COLORS["accent"]
+        if context.is_ai_thinking:
+            return "AI ĐANG TÍNH...", COLORS["accent"]
+        if state.game_over:
+            return "KẾT THÚC", COLORS["success"]
+        color = COLORS["x"] if state.current_player == PLAYER_X else COLORS["o"]
+        return f"LƯỢT {player_label(state.current_player)}", color
+
+    @staticmethod
+    def _depth_note(settings: GameSettings, agent: GameAI | None) -> str:
+        if agent is None:
+            return ""
+        return (
+            "Depth: 1 (fixed)"
+            if agent.key == "greedy"
+            else f"Depth: {settings.depth_for_algorithm(agent.key)}"
+        )
+
+    def _build_view(self, context: MetricsPanelContext) -> MetricsPanelView:
         settings = context.settings
         state = context.state
-        draw_panel(
-            surface,
-            self.RECT,
-            COLORS["panel"],
-            border_color=(48, 69, 101),
+        status, status_color = self._status(context)
+        record = metric_record_for_view(
+            context.move_metrics,
+            context.review_index,
+            len(state.history),
         )
-        draw_text(
-            surface,
-            "EVALUATION METRICS",
-            18,
-            COLORS["primary"],
-            (906, 112),
-            bold=True,
-        )
-
-        if context.review_index != len(state.history):
-            status = "ĐANG XEM LẠI"
-            status_color = COLORS["accent"]
-        elif context.is_ai_thinking:
-            status = "AI ĐANG TÍNH..."
-            status_color = COLORS["accent"]
-        elif state.game_over:
-            status = "KẾT THÚC"
-            status_color = COLORS["success"]
-        else:
-            status = f"LƯỢT {player_label(state.current_player)}"
-            status_color = (
-                COLORS["x"] if state.current_player == PLAYER_X else COLORS["o"]
-            )
-        draw_text(
-            surface,
-            status,
-            15,
-            status_color,
-            (1232, 114),
-            bold=True,
-            anchor="topright",
-        )
-
-        record = self._metric_record(context)
         live_ai_turn = (
             context.review_index == len(state.history)
             and not state.game_over
@@ -159,10 +139,7 @@ class MetricsPanel:
 
         if live_ai_turn and current_agent is not None:
             current_ai = current_agent.name
-            if current_agent.key == "greedy":
-                depth_note = "Depth: 1 (fixed)"
-            else:
-                depth_note = f"Depth: {self._depth_for_ai(settings, current_agent)}"
+            depth_note = self._depth_note(settings, current_agent)
             move_note = "Current turn"
             if record is not None:
                 move_note = (
@@ -179,12 +156,7 @@ class MetricsPanel:
             move_note = f"Move {record.move_number}: {player_label(record.player)}"
         else:
             current_ai = current_agent.name if current_agent else "Human"
-            if current_agent is None:
-                depth_note = ""
-            elif current_agent.key == "greedy":
-                depth_note = "Depth: 1 (fixed)"
-            else:
-                depth_note = f"Depth: {self._depth_for_ai(settings, current_agent)}"
+            depth_note = self._depth_note(settings, current_agent)
             move_note = "Current turn"
 
         if current_agent is None and record is None:
@@ -209,37 +181,24 @@ class MetricsPanel:
             total_value = "N/A"
             total_note = "Khi kết thúc"
 
-        cards = [
-            (
+        thinking_value = (
+            "Đang tính..." if live_ai_turn and context.is_ai_thinking else "N/A"
+        )
+        cards = (
+            MetricCardData(
                 "Execution Time",
-                (
-                    f"{metric.execution_time_ms:.2f} ms"
-                    if metric is not None
-                    else (
-                        "Đang tính..."
-                        if live_ai_turn and context.is_ai_thinking
-                        else "N/A"
-                    )
-                ),
+                f"{metric.execution_time_ms:.2f} ms" if metric else thinking_value,
                 COLORS["accent"],
                 decision_note,
             ),
-            (
+            MetricCardData(
                 "Nodes Expanded",
-                (
-                    f"{metric.nodes_expanded:,}"
-                    if metric is not None
-                    else (
-                        "Đang tính..."
-                        if live_ai_turn and context.is_ai_thinking
-                        else "N/A"
-                    )
-                ),
+                f"{metric.nodes_expanded:,}" if metric else thinking_value,
                 COLORS["text"],
                 node_note,
             ),
-            ("Current AI", current_ai, COLORS["primary"], depth_note),
-            (
+            MetricCardData("Current AI", current_ai, COLORS["primary"], depth_note),
+            MetricCardData(
                 "Move Count",
                 (
                     f"{context.review_index} / {len(state.history)}"
@@ -249,35 +208,31 @@ class MetricsPanel:
                 COLORS["text"],
                 move_note,
             ),
-            (
+            MetricCardData(
                 "Win Rate",
                 win_rate,
                 COLORS["success"],
                 (
-                    (f"W-D-L: {stats['wins']}-{stats['draws']}-{stats['losses']}")
+                    f"W-D-L: {stats['wins']}-{stats['draws']}-{stats['losses']}"
                     if stats["games"]
                     else "Session"
                 ),
             ),
-            (
+            MetricCardData(
                 "Game Total",
                 total_value,
                 COLORS["success"] if state.game_over else COLORS["muted"],
                 total_note,
             ),
-        ]
-        y = 150
-        for label, value, color, note in cards:
-            draw_metric_card(
-                surface,
-                pygame.Rect(904, y, 332, 74),
-                label,
-                value,
-                value_color=color,
-                note=note,
-            )
-            y += 80
+        )
+        return MetricsPanelView(status, status_color, cards)
 
+    @staticmethod
+    def _draw_footer(
+        surface: pygame.Surface,
+        context: MetricsPanelContext,
+    ) -> None:
+        settings = context.settings
         draw_text(
             surface,
             f"Chế độ: {MATCH_MODE_LABELS[settings.match_mode]}",
@@ -297,13 +252,7 @@ class MetricsPanel:
                 f"X: {ALGORITHM_LABELS[settings.ai_x]}  |  "
                 f"O: {ALGORITHM_LABELS[settings.ai_o]}"
             )
-            draw_text(
-                surface,
-                matchup,
-                11,
-                COLORS["muted"],
-                (904, 663),
-            )
+            draw_text(surface, matchup, 11, COLORS["muted"], (904, 663))
         if context.ai_error or context.history_error:
             error = context.ai_error or context.history_error
             prefix = "AI error" if context.ai_error else "History error"
@@ -322,3 +271,46 @@ class MetricsPanel:
                 COLORS["muted"],
                 (904, 683),
             )
+
+    def draw(
+        self,
+        surface: pygame.Surface,
+        context: MetricsPanelContext,
+    ) -> None:
+        view = self._build_view(context)
+        draw_panel(
+            surface,
+            self.RECT,
+            COLORS["panel"],
+            border_color=(48, 69, 101),
+        )
+        draw_text(
+            surface,
+            "EVALUATION METRICS",
+            18,
+            COLORS["primary"],
+            (906, 112),
+            bold=True,
+        )
+        draw_text(
+            surface,
+            view.status,
+            15,
+            view.status_color,
+            (1232, 114),
+            bold=True,
+            anchor="topright",
+        )
+
+        y = 150
+        for card in view.cards:
+            draw_metric_card(
+                surface,
+                pygame.Rect(904, y, 332, 74),
+                card.label,
+                card.value,
+                value_color=card.color,
+                note=card.note,
+            )
+            y += 80
+        self._draw_footer(surface, context)

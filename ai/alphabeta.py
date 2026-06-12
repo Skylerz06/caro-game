@@ -5,13 +5,13 @@ from __future__ import annotations
 from time import perf_counter
 
 from ai.base import GameAI
+from ai.search_helpers import RootSearchTracker, terminal_or_leaf_score
 from game.board import Board
 from game.rules import check_win
 from utils.helpers import (
     WIN_SCORE,
     SearchMetrics,
     branch_limit_for_depth,
-    build_search_analysis,
     evaluate_board,
     opponent,
     ordered_moves,
@@ -44,9 +44,7 @@ class AlphaBetaAI(GameAI):
 
         alpha = float("-inf")
         beta = float("inf")
-        best_move: tuple[int, int] | None = None
-        best_score = float("-inf")
-        candidate_results: list[tuple[int, int, float, bool, int]] = []
+        tracker = RootSearchTracker(self.key, "Alpha-Beta Value")
 
         for row, col in moves:
             working.place(row, col, player)
@@ -70,30 +68,18 @@ class AlphaBetaAI(GameAI):
                     limit,
                 )
             working.remove(row, col)
-            candidate_results.append(
-                (
-                    row,
-                    col,
-                    score,
-                    terminal_win,
-                    metrics.pruned_branches - pruned_before,
-                )
+            tracker.record(
+                row,
+                col,
+                score,
+                terminal_win,
+                metrics.pruned_branches - pruned_before,
             )
+            alpha = max(alpha, tracker.best_score)
 
-            if score > best_score:
-                best_score = score
-                best_move = (row, col)
-            alpha = max(alpha, best_score)
-
-        metrics.score = best_score if best_move is not None else 0.0
-        metrics.analysis = build_search_analysis(
-            self.key,
-            "Alpha-Beta Value",
-            candidate_results,
-            best_move,
-        )
+        tracker.apply_to(metrics)
         metrics.execution_time_ms = (perf_counter() - start) * 1000
-        return best_move, metrics
+        return tracker.best_move, metrics
 
     def _alphabeta(
         self,
@@ -109,15 +95,16 @@ class AlphaBetaAI(GameAI):
         metrics: SearchMetrics,
         branch_limit: int,
     ) -> float:
-        row, col = last_move
-        if check_win(board, row, col, last_player, win_length):
-            if last_player == maximizing_player:
-                return float(WIN_SCORE + depth)
-            return float(-WIN_SCORE - depth)
-        if board.is_full():
-            return 0.0
-        if depth <= 0:
-            return evaluate_board(board, maximizing_player, win_length)
+        terminal_score = terminal_or_leaf_score(
+            board,
+            depth,
+            maximizing_player,
+            win_length,
+            last_move,
+            last_player,
+        )
+        if terminal_score is not None:
+            return terminal_score
 
         moves = ordered_moves(board, current_player, win_length, branch_limit)
         if not moves:

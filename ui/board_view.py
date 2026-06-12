@@ -63,24 +63,18 @@ class BoardView:
     ) -> None:
         radius = max(6, int(cell_size * 0.30))
         width = max(2, int(cell_size * 0.09))
-        if player == PLAYER_X:
-            offset = int(radius * 0.75)
-            pygame.draw.line(
-                surface,
-                COLORS["x"],
-                (center[0] - offset, center[1] - offset),
-                (center[0] + offset, center[1] + offset),
-                width,
-            )
-            pygame.draw.line(
-                surface,
-                COLORS["x"],
-                (center[0] + offset, center[1] - offset),
-                (center[0] - offset, center[1] + offset),
-                width,
-            )
-        elif player == PLAYER_O:
+        if player == PLAYER_O:
             pygame.draw.circle(surface, COLORS["o"], center, radius, width)
+            return
+        if player != PLAYER_X:
+            return
+        offset = int(radius * 0.75)
+        x, y = center
+        for start, end in (
+            ((x - offset, y - offset), (x + offset, y + offset)),
+            ((x + offset, y - offset), (x - offset, y + offset)),
+        ):
+            pygame.draw.line(surface, COLORS["x"], start, end, width)
 
     @staticmethod
     def _heat_color(candidate: CandidateScore, total: int) -> tuple[int, int, int]:

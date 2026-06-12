@@ -105,53 +105,21 @@ class HistoryScreen:
             surface,
             record.result.upper(),
             18,
-            (COLORS["success"] if "thắng" in record.result else COLORS["accent"]),
+            COLORS["success"] if "thắng" in record.result else COLORS["accent"],
             (rect.right - 18, rect.top + 12),
             bold=True,
             anchor="topright",
         )
-        draw_text(
-            surface,
-            f"{record.mode_label} | {record.board_label}",
-            14,
-            COLORS["text"],
-            (rect.left + 18, rect.top + 44),
+        lines = (
+            (f"{record.mode_label} | {record.board_label}", 14, 44, COLORS["text"]),
+            (f"X: {record.x_agent} | O: {record.o_agent}", 13, 72, COLORS["muted"]),
+            (f"Moves: {record.move_count}", 13, 100, COLORS["muted"]),
+            (f"Total: {record.total_line}", 13, 124, COLORS["muted"]),
+            (f"Average: {record.average_line}", 12, 148, COLORS["muted"]),
+            (f"Seed: {record.game_seed:016X}", 12, 170, COLORS["muted"]),
         )
-        draw_text(
-            surface,
-            f"X: {record.x_agent} | O: {record.o_agent}",
-            13,
-            COLORS["muted"],
-            (rect.left + 18, rect.top + 72),
-        )
-        draw_text(
-            surface,
-            f"Moves: {record.move_count}",
-            13,
-            COLORS["muted"],
-            (rect.left + 18, rect.top + 100),
-        )
-        draw_text(
-            surface,
-            f"Total: {record.total_line}",
-            13,
-            COLORS["muted"],
-            (rect.left + 18, rect.top + 124),
-        )
-        draw_text(
-            surface,
-            f"Average: {record.average_line}",
-            12,
-            COLORS["muted"],
-            (rect.left + 18, rect.top + 148),
-        )
-        draw_text(
-            surface,
-            f"Seed: {record.game_seed:016X}",
-            12,
-            COLORS["muted"],
-            (rect.left + 18, rect.top + 170),
-        )
+        for text, size, top, color in lines:
+            draw_text(surface, text, size, color, (rect.left + 18, rect.top + top))
         replay_button.draw(surface)
 
     def draw(self, surface: pygame.Surface) -> None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from queue import Empty, Queue
 from threading import Thread
@@ -19,19 +20,24 @@ from game.match_history import (
     metric_record_for_view,
     next_match_number,
 )
+from game.metrics import SearchTotals, new_session_stats
 from game.state import GameState
 from ui.board_view import BoardView
-from ui.components import Button, IconButton, draw_gradient, draw_panel, draw_text
+from ui.components import (
+    Button,
+    IconButton,
+    draw_gradient,
+    draw_panel,
+    draw_text,
+    is_left_click,
+)
 from ui.metrics_panel import MetricsPanel, MetricsPanelContext
+from ui.move_history_bar import MoveHistoryBar
 from utils.helpers import SearchMetrics, player_label
 from utils.seedmaker import derive_seed, new_global_seed
 
 
 class GameScreen:
-    BOARD_PANEL = BoardView.PANEL_RECT
-    BOARD_AREA = BoardView.AREA_RECT
-    SIDE_PANEL = MetricsPanel.RECT
-    HISTORY_PANEL = pygame.Rect(24, 724, 1232, 58)
     RESULT_NOTICE_MS = 5000
 
     def __init__(
@@ -44,11 +50,10 @@ class GameScreen:
         self.history_store = history_store
         self.board_view = BoardView()
         self.metrics_panel = MetricsPanel()
+        self.history_bar = MoveHistoryBar(analysis_enabled=False)
         self.state = GameState(settings.rows, settings.cols, settings.win_length)
         self.ai_players: dict[int, GameAI] = {}
-        self.last_metrics = SearchMetrics()
         self.last_ai_player: int | None = None
-        self.review_index = 0
         self.last_action_time = pygame.time.get_ticks()
         self.result_recorded = False
         self.search_generation = 0
@@ -60,16 +65,9 @@ class GameScreen:
         self.current_summary: MatchHistoryRecord | None = None
         self.match_history = match_history if match_history is not None else []
         self.history_error = ""
-        self.game_total_time_ms = 0.0
-        self.game_total_nodes = 0
-        self.game_total_pruned = 0
-        self.game_ai_moves = 0
+        self.search_totals = SearchTotals()
         self.result_notice_started_at = 0
-        self.analysis_enabled = False
-        self.session_stats = {
-            PLAYER_X: {"wins": 0, "draws": 0, "losses": 0, "games": 0},
-            PLAYER_O: {"wins": 0, "draws": 0, "losses": 0, "games": 0},
-        }
+        self.session_stats = new_session_stats()
 
         self.menu_button = Button(pygame.Rect(24, 18, 116, 44), "MENU")
         self.student_panel = pygame.Rect(310, 18, 570, 44)
@@ -78,88 +76,57 @@ class GameScreen:
         self.settings_button = IconButton(
             pygame.Rect(1192, 16, 48, 48), "gear", tooltip="Cài đặt"
         )
-        self.prev_button = IconButton(pygame.Rect(558, 732, 42, 42), "left")
-        self.next_button = IconButton(pygame.Rect(680, 732, 42, 42), "right")
-        self.analysis_button = Button(pygame.Rect(984, 732, 198, 42), "PHÂN TÍCH AI")
         self.start(settings)
+
+    def _reset_match(self, *, recreate_state: bool, reset_session: bool) -> None:
+        if recreate_state:
+            self.state = GameState(
+                self.settings.rows,
+                self.settings.cols,
+                self.settings.win_length,
+            )
+        else:
+            self.state.reset()
+        self._create_ai_players()
+        self.last_ai_player = None
+        self.history_bar.reset(0)
+        self.last_action_time = pygame.time.get_ticks()
+        self.result_recorded = False
+        self.ai_error = ""
+        self.history_error = ""
+        self.move_metrics = {}
+        self.current_summary = None
+        self.search_totals = SearchTotals()
+        self.result_notice_started_at = 0
+        if reset_session:
+            self.session_stats = new_session_stats()
 
     def start(self, settings: GameSettings, reset_session: bool = True) -> None:
         self._invalidate_search()
         self.settings = GameSettings.from_dict(settings.to_dict())
-        self.state = GameState(
-            self.settings.rows,
-            self.settings.cols,
-            self.settings.win_length,
-        )
-        self._create_ai_players()
-
-        self.last_metrics = SearchMetrics()
-        self.last_ai_player = None
-        self.review_index = 0
-        self.last_action_time = pygame.time.get_ticks()
-        self.result_recorded = False
-        self.ai_error = ""
-        self.history_error = ""
-        self.move_metrics = {}
-        self.current_summary = None
-        self.game_total_time_ms = 0.0
-        self.game_total_nodes = 0
-        self.game_total_pruned = 0
-        self.game_ai_moves = 0
-        self.result_notice_started_at = 0
-        if reset_session:
-            self.session_stats = {
-                PLAYER_X: {
-                    "wins": 0,
-                    "draws": 0,
-                    "losses": 0,
-                    "games": 0,
-                },
-                PLAYER_O: {
-                    "wins": 0,
-                    "draws": 0,
-                    "losses": 0,
-                    "games": 0,
-                },
-            }
+        self._reset_match(recreate_state=True, reset_session=reset_session)
 
     def _restart(self) -> None:
         self._invalidate_search()
-        self.state.reset()
-        self._create_ai_players()
-        self.last_metrics = SearchMetrics()
-        self.last_ai_player = None
-        self.review_index = 0
-        self.last_action_time = pygame.time.get_ticks()
-        self.result_recorded = False
-        self.ai_error = ""
-        self.history_error = ""
-        self.move_metrics = {}
-        self.current_summary = None
-        self.game_total_time_ms = 0.0
-        self.game_total_nodes = 0
-        self.game_total_pruned = 0
-        self.game_ai_moves = 0
-        self.result_notice_started_at = 0
+        self._reset_match(recreate_state=False, reset_session=False)
 
     def _create_ai_players(self) -> None:
-        """Mỗi ván có global seed mới, sau đó tách seed cho từng AI."""
+        """Create configured agents from one new seed per match."""
         self.game_seed = new_global_seed()
-        self.ai_players = {}
+        keys = {}
         if self.settings.match_mode == "human_ai":
-            self.ai_players[PLAYER_O] = create_ai(
-                self.settings.ai_o,
-                seed=derive_seed(self.game_seed, "ai:o"),
-            )
+            keys = {PLAYER_O: self.settings.ai_o}
         elif self.settings.match_mode == "ai_ai":
-            self.ai_players[PLAYER_X] = create_ai(
-                self.settings.ai_x,
-                seed=derive_seed(self.game_seed, "ai:x"),
+            keys = {PLAYER_X: self.settings.ai_x, PLAYER_O: self.settings.ai_o}
+        self.ai_players = {
+            player: create_ai(
+                key,
+                seed=derive_seed(
+                    self.game_seed, f"ai:{player_label(player).lower()}"
+                ),
             )
-            self.ai_players[PLAYER_O] = create_ai(
-                self.settings.ai_o,
-                seed=derive_seed(self.game_seed, "ai:o"),
-            )
+            for player, key in keys.items()
+        }
 
     def _invalidate_search(self) -> None:
         """Làm kết quả đang tính trở nên vô hiệu khi đổi/reset ván."""
@@ -181,19 +148,11 @@ class GameScreen:
     def _is_human_turn(self) -> bool:
         return self.state.current_player not in self.ai_players
 
-    def _depth_for_ai(self, ai: GameAI) -> int:
-        """Depth phụ thuộc thuật toán, không dùng một global depth."""
-        if ai.key == "minimax":
-            return self.settings.minimax_depth
-        if ai.key == "alphabeta":
-            return self.settings.alphabeta_depth
-        return 1
-
     def _handle_board_click(self, position: tuple[int, int]) -> None:
         if (
             self.state.game_over
             or not self._is_human_turn()
-            or self.review_index != len(self.state.history)
+            or self.history_bar.review_index != len(self.state.history)
         ):
             return
 
@@ -212,7 +171,7 @@ class GameScreen:
                 depth=0,
                 metrics=SearchMetrics(),
             )
-            self.review_index = len(self.state.history)
+            self.history_bar.review_index = len(self.state.history)
             self.last_action_time = pygame.time.get_ticks()
             self._record_result_if_needed()
 
@@ -229,32 +188,21 @@ class GameScreen:
         if self.settings_button.handle_event(event):
             self._invalidate_search()
             return "settings"
-        if self.analysis_button.handle_event(event):
-            self.analysis_enabled = not self.analysis_enabled
+        if self.history_bar.handle_event(event, len(self.state.history)):
             return None
 
-        self.prev_button.enabled = self.review_index > 0
-        self.next_button.enabled = self.review_index < len(self.state.history)
-        if self.prev_button.handle_event(event):
-            self.review_index -= 1
-            return None
-        if self.next_button.handle_event(event):
-            self.review_index += 1
-            return None
-
-        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+        if is_left_click(event):
             self._handle_board_click(event.pos)
         return None
 
     def update(self) -> None:
-        self.prev_button.enabled = self.review_index > 0
-        self.next_button.enabled = self.review_index < len(self.state.history)
+        self.history_bar.sync(len(self.state.history))
         self._collect_ai_result()
 
         if self.state.game_over:
             self._record_result_if_needed()
             return
-        if self.review_index != len(self.state.history):
+        if self.history_bar.review_index != len(self.state.history):
             return
 
         ai = self.ai_players.get(self.state.current_player)
@@ -280,7 +228,7 @@ class GameScreen:
                 ai,
                 board,
                 self.settings.win_length,
-                self._depth_for_ai(ai),
+                self.settings.depth_for_algorithm(ai.key),
             ),
             daemon=True,
             name=f"caro-ai-{player}",
@@ -322,20 +270,12 @@ class GameScreen:
             return
 
         self.ai_error = error
-        self.last_metrics = metrics
         self.last_ai_player = player
         if move is not None and self.state.play_move(*move):
             move_number = len(self.state.history)
             ai = self.ai_players[player]
-            depth = metrics.depth or self._depth_for_ai(ai)
-            snapshot = SearchMetrics(
-                execution_time_ms=metrics.execution_time_ms,
-                nodes_expanded=metrics.nodes_expanded,
-                score=metrics.score,
-                depth=depth,
-                pruned_branches=metrics.pruned_branches,
-                analysis=metrics.analysis,
-            )
+            depth = metrics.depth or self.settings.depth_for_algorithm(ai.key)
+            snapshot = replace(metrics, depth=depth)
             self.move_metrics[move_number] = MoveMetricRecord(
                 move_number=move_number,
                 player=player,
@@ -344,11 +284,8 @@ class GameScreen:
                 depth=depth,
                 metrics=snapshot,
             )
-            self.game_total_time_ms += snapshot.execution_time_ms
-            self.game_total_nodes += snapshot.nodes_expanded
-            self.game_total_pruned += snapshot.pruned_branches
-            self.game_ai_moves += 1
-            self.review_index = len(self.state.history)
+            self.search_totals.add(snapshot)
+            self.history_bar.move_to_latest(len(self.state.history))
         self.last_action_time = pygame.time.get_ticks()
         self._record_result_if_needed()
 
@@ -361,13 +298,13 @@ class GameScreen:
             return
         for player in self.ai_players:
             stats = self.session_stats[player]
+            outcome = (
+                "draws"
+                if self.state.is_draw
+                else "wins" if self.state.winner == player else "losses"
+            )
             stats["games"] += 1
-            if self.state.winner == player:
-                stats["wins"] += 1
-            elif self.state.is_draw:
-                stats["draws"] += 1
-            else:
-                stats["losses"] += 1
+            stats[outcome] += 1
         if self.state.is_draw:
             result = "Hòa"
         else:
@@ -385,10 +322,10 @@ class GameScreen:
             result=result,
             move_count=len(self.state.history),
             game_seed=self.game_seed,
-            total_time_ms=self.game_total_time_ms,
-            total_nodes=self.game_total_nodes,
-            total_pruned=self.game_total_pruned,
-            ai_move_count=self.game_ai_moves,
+            total_time_ms=self.search_totals.execution_time_ms,
+            total_nodes=self.search_totals.nodes_expanded,
+            total_pruned=self.search_totals.pruned_branches,
+            ai_move_count=self.search_totals.move_count,
             rows=self.settings.rows,
             cols=self.settings.cols,
             win_length=self.settings.win_length,
@@ -411,62 +348,6 @@ class GameScreen:
                 self.history_error = str(exc)
         self.result_notice_started_at = pygame.time.get_ticks()
         self.result_recorded = True
-
-    def _draw_history(self, surface: pygame.Surface) -> None:
-        pygame.draw.rect(
-            surface,
-            COLORS["panel"],
-            self.HISTORY_PANEL,
-            border_radius=16,
-        )
-        draw_text(
-            surface,
-            "MOVE HISTORY",
-            12,
-            COLORS["muted"],
-            (42, 738),
-            bold=True,
-        )
-        recent = self.state.history[max(0, self.review_index - 7) : self.review_index]
-        history_text = "  ".join(
-            f"{move.number}.{player_label(move.player)}:{move.notation}"
-            for move in recent
-        )
-        draw_text(
-            surface,
-            history_text or "Chưa có nước đi",
-            14,
-            COLORS["text"],
-            (160, 737),
-        )
-
-        self.prev_button.draw(surface)
-        self.next_button.draw(surface)
-        self.analysis_button.text = (
-            "PHÂN TÍCH: BẬT" if self.analysis_enabled else "PHÂN TÍCH AI"
-        )
-        self.analysis_button.accent = self.analysis_enabled
-        self.analysis_button.draw(surface)
-        draw_text(
-            surface,
-            f"{self.review_index} / {len(self.state.history)}",
-            15,
-            COLORS["text"],
-            (640, 753),
-            bold=True,
-            anchor="center",
-        )
-        mode_text = "LIVE" if self.review_index == len(self.state.history) else "REVIEW"
-        mode_color = COLORS["success"] if mode_text == "LIVE" else COLORS["accent"]
-        draw_text(
-            surface,
-            mode_text,
-            12,
-            mode_color,
-            (1234, 753),
-            bold=True,
-            anchor="midright",
-        )
 
     def draw(self, surface: pygame.Surface) -> None:
         draw_gradient(surface, COLORS["background"], COLORS["background_2"])
@@ -508,17 +389,17 @@ class GameScreen:
         )
         analysis_record = metric_record_for_view(
             self.move_metrics,
-            self.review_index,
+            self.history_bar.review_index,
             len(self.state.history),
         )
         self.board_view.draw(
             surface,
             self.state,
             self.settings,
-            self.review_index,
+            self.history_bar.review_index,
             self.result_notice_started_at,
             self.RESULT_NOTICE_MS,
-            show_analysis=self.analysis_enabled,
+            show_analysis=self.history_bar.analysis_enabled,
             analysis=(
                 analysis_record.analysis if analysis_record is not None else None
             ),
@@ -528,7 +409,7 @@ class GameScreen:
             MetricsPanelContext(
                 settings=self.settings,
                 state=self.state,
-                review_index=self.review_index,
+                review_index=self.history_bar.review_index,
                 ai_players=self.ai_players,
                 move_metrics=self.move_metrics,
                 last_ai_player=self.last_ai_player,
@@ -540,4 +421,12 @@ class GameScreen:
                 game_seed=self.game_seed,
             ),
         )
-        self._draw_history(surface)
+        live = self.history_bar.review_index == len(self.state.history)
+        self.history_bar.draw(
+            surface,
+            self.state.history,
+            title="MOVE HISTORY",
+            empty_text="Ch?a c? n??c ?i",
+            mode_text="LIVE" if live else "REVIEW",
+            mode_color=COLORS["success"] if live else COLORS["accent"],
+        )

@@ -66,6 +66,14 @@ class GameSettings:
     alphabeta_depth: int = 2
     ai_delay_ms: int = 350
 
+    def depth_for_algorithm(self, algorithm: str) -> int:
+        """Trả về depth hiệu dụng của từng thuật toán."""
+        if algorithm == "minimax":
+            return self.minimax_depth
+        if algorithm == "alphabeta":
+            return self.alphabeta_depth
+        return 1
+
     def validate(self) -> "GameSettings":
         """Chuẩn hóa dữ liệu để tránh cấu hình không hợp lệ."""
         self.rows = max(3, min(20, int(self.rows)))

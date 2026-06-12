@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import random
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import product
 from pathlib import Path
 
@@ -16,6 +16,7 @@ if __package__ in (None, ""):
 from ai import create_ai
 from config.settings import ALGORITHM_LABELS, ALGORITHMS
 from game.board import PLAYER_O, PLAYER_X
+from game.metrics import SearchTotals
 from game.state import GameState
 from utils.seedmaker import derive_seed, new_global_seed
 
@@ -26,9 +27,7 @@ class AlgorithmStats:
     wins: int = 0
     draws: int = 0
     losses: int = 0
-    moves: int = 0
-    time_ms: float = 0.0
-    nodes: int = 0
+    search: SearchTotals = field(default_factory=SearchTotals)
 
 
 @dataclass
@@ -38,9 +37,7 @@ class MatchupResult:
     x_wins: int = 0
     o_wins: int = 0
     draws: int = 0
-    moves: int = 0
-    time_ms: float = 0.0
-    nodes: int = 0
+    search: SearchTotals = field(default_factory=SearchTotals)
 
 
 def play_game(
@@ -75,9 +72,7 @@ def play_game(
             ),
         ),
     }
-    total_time = 0.0
-    total_nodes = 0
-    searched_moves = 0
+    totals = SearchTotals()
 
     for row, col in opening:
         if state.game_over or not state.play_move(row, col):
@@ -92,14 +87,9 @@ def play_game(
         if move is None:
             break
         state.play_move(*move)
-        total_time += metrics.execution_time_ms
-        total_nodes += metrics.nodes_expanded
-        searched_moves += 1
+        totals.add(metrics)
         if count_for_summary:
-            stats = global_stats[key]
-            stats.moves += 1
-            stats.time_ms += metrics.execution_time_ms
-            stats.nodes += metrics.nodes_expanded
+            global_stats[key].search.add(metrics)
 
     if count_for_summary:
         for player, (key, _) in agents.items():
@@ -112,7 +102,12 @@ def play_game(
             else:
                 stats.losses += 1
 
-    return state.winner, searched_moves, total_time, total_nodes
+    return (
+        state.winner,
+        totals.move_count,
+        totals.execution_time_ms,
+        totals.nodes_expanded,
+    )
 
 
 def generate_opening(
@@ -179,9 +174,9 @@ def run_evaluation(args: argparse.Namespace) -> None:
                 ai_x_key != ai_o_key,
                 game_seeds[game_index],
             )
-            result.moves += moves
-            result.time_ms += time_ms
-            result.nodes += nodes
+            result.search.move_count += moves
+            result.search.execution_time_ms += time_ms
+            result.search.nodes_expanded += nodes
             if winner == PLAYER_X:
                 result.x_wins += 1
             elif winner == PLAYER_O:
@@ -197,13 +192,8 @@ def run_evaluation(args: argparse.Namespace) -> None:
         f"Alpha-Beta={args.alphabeta_depth}\n"
         f"Global seed phiên chạy: {global_seed}\n"
     )
-    for game_index, (game_seed, opening) in enumerate(
-        zip(game_seeds, openings), 1
-    ):
-        print(
-            f"  Case {game_index}: game_seed={game_seed}, "
-            f"opening={opening}"
-        )
+    for game_index, (game_seed, opening) in enumerate(zip(game_seeds, openings), 1):
+        print(f"  Case {game_index}: game_seed={game_seed}, opening={opening}")
     print()
     header = (
         f"{'AI X':<16} {'AI O':<16} {'X thắng':>7} {'O thắng':>7} "
@@ -212,19 +202,18 @@ def run_evaluation(args: argparse.Namespace) -> None:
     print(header)
     print("-" * len(header))
     for result in results:
-        move_count = max(1, result.moves)
+        move_count = max(1, result.search.move_count)
         print(
             f"{ALGORITHM_LABELS[result.ai_x]:<16} "
             f"{ALGORITHM_LABELS[result.ai_o]:<16} "
             f"{result.x_wins:>7} {result.o_wins:>7} "
             f"{result.draws:>5} "
-            f"{result.time_ms / move_count:>10.2f} "
-            f"{result.nodes / move_count:>12.1f}"
+            f"{result.search.execution_time_ms / move_count:>10.2f} "
+            f"{result.search.nodes_expanded / move_count:>12.1f}"
         )
 
     total_games = sum(
-        result.x_wins + result.o_wins + result.draws
-        for result in results
+        result.x_wins + result.o_wins + result.draws for result in results
     )
     total_x_wins = sum(result.x_wins for result in results)
     total_o_wins = sum(result.o_wins for result in results)
@@ -247,17 +236,15 @@ def run_evaluation(args: argparse.Namespace) -> None:
         stats = global_stats[key]
         win_rate = stats.wins / stats.games * 100 if stats.games else 0.0
         score_rate = (
-            (stats.wins + 0.5 * stats.draws) / stats.games * 100
-            if stats.games
-            else 0.0
+            (stats.wins + 0.5 * stats.draws) / stats.games * 100 if stats.games else 0.0
         )
-        move_count = max(1, stats.moves)
+        move_count = max(1, stats.search.move_count)
         print(
             f"{ALGORITHM_LABELS[key]:<16} "
             f"{stats.wins:>3}-{stats.draws}-{stats.losses:<3} "
             f"{win_rate:>9.1f}% {score_rate:>10.1f}% "
-            f"{stats.time_ms / move_count:>11.2f} "
-            f"{stats.nodes / move_count:>11.1f}"
+            f"{stats.search.execution_time_ms / move_count:>11.2f} "
+            f"{stats.search.nodes_expanded / move_count:>11.1f}"
         )
 
 
@@ -275,12 +262,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=argparse.SUPPRESS,
     )
-    parser.add_argument(
-        "--minimax-depth", type=int, choices=range(1, 5), default=2
-    )
-    parser.add_argument(
-        "--alphabeta-depth", type=int, choices=range(1, 5), default=2
-    )
+    parser.add_argument("--minimax-depth", type=int, choices=range(1, 5), default=2)
+    parser.add_argument("--alphabeta-depth", type=int, choices=range(1, 5), default=2)
     parser.add_argument(
         "--games",
         type=int,

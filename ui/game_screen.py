@@ -12,7 +12,11 @@ from ai import create_ai
 from ai.base import GameAI
 from config.settings import COLORS, MATCH_MODE_LABELS, GameSettings
 from game.board import Board, PLAYER_O, PLAYER_X
-from game.match_history import MatchHistoryRecord, MoveMetricRecord
+from game.match_history import (
+    MatchHistoryRecord,
+    MoveMetricRecord,
+    metric_record_for_view,
+)
 from game.state import GameState
 from ui.board_view import BoardView
 from ui.components import Button, IconButton, draw_gradient, draw_panel, draw_text
@@ -52,6 +56,7 @@ class GameScreen:
         self.game_total_pruned = 0
         self.game_ai_moves = 0
         self.result_notice_started_at = 0
+        self.analysis_enabled = False
         self.session_stats = {
             PLAYER_X: {"wins": 0, "draws": 0, "losses": 0, "games": 0},
             PLAYER_O: {"wins": 0, "draws": 0, "losses": 0, "games": 0},
@@ -66,6 +71,7 @@ class GameScreen:
         )
         self.prev_button = IconButton(pygame.Rect(558, 732, 42, 42), "left")
         self.next_button = IconButton(pygame.Rect(680, 732, 42, 42), "right")
+        self.analysis_button = Button(pygame.Rect(984, 732, 198, 42), "PHÂN TÍCH AI")
         self.start(settings)
 
     def start(self, settings: GameSettings, reset_session: bool = True) -> None:
@@ -212,6 +218,9 @@ class GameScreen:
         if self.settings_button.handle_event(event):
             self._invalidate_search()
             return "settings"
+        if self.analysis_button.handle_event(event):
+            self.analysis_enabled = not self.analysis_enabled
+            return None
 
         self.prev_button.enabled = self.review_index > 0
         self.next_button.enabled = self.review_index < len(self.state.history)
@@ -314,6 +323,7 @@ class GameScreen:
                 score=metrics.score,
                 depth=depth,
                 pruned_branches=metrics.pruned_branches,
+                analysis=metrics.analysis,
             )
             self.move_metrics[move_number] = MoveMetricRecord(
                 move_number=move_number,
@@ -403,6 +413,11 @@ class GameScreen:
 
         self.prev_button.draw(surface)
         self.next_button.draw(surface)
+        self.analysis_button.text = (
+            "PHÂN TÍCH: BẬT" if self.analysis_enabled else "PHÂN TÍCH AI"
+        )
+        self.analysis_button.accent = self.analysis_enabled
+        self.analysis_button.draw(surface)
         draw_text(
             surface,
             f"{self.review_index} / {len(self.state.history)}",
@@ -462,6 +477,11 @@ class GameScreen:
             COLORS["muted"],
             (164, 51),
         )
+        analysis_record = metric_record_for_view(
+            self.move_metrics,
+            self.review_index,
+            len(self.state.history),
+        )
         self.board_view.draw(
             surface,
             self.state,
@@ -469,6 +489,10 @@ class GameScreen:
             self.review_index,
             self.result_notice_started_at,
             self.RESULT_NOTICE_MS,
+            show_analysis=self.analysis_enabled,
+            analysis=(
+                analysis_record.analysis if analysis_record is not None else None
+            ),
         )
         self.metrics_panel.draw(
             surface,

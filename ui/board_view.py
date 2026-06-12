@@ -1,4 +1,4 @@
-"""Hiển thị bàn cờ và chuyển đổi tọa độ chuột thành ô cờ."""
+"""Hiển thị bàn cờ và trực quan hóa quyết định của AI."""
 
 from __future__ import annotations
 
@@ -6,9 +6,14 @@ import pygame
 
 from config.settings import COLORS, GameSettings
 from game.board import EMPTY, PLAYER_O, PLAYER_X
-from game.state import GameState
-from ui.components import draw_panel, draw_text
-from utils.helpers import player_label
+from game.state import GameState, column_name
+from ui.components import FontCache, draw_panel, draw_text
+from utils.helpers import (
+    CandidateScore,
+    SearchAnalysis,
+    format_search_score,
+    player_label,
+)
 
 
 class BoardView:
@@ -77,6 +82,35 @@ class BoardView:
         elif player == PLAYER_O:
             pygame.draw.circle(surface, COLORS["o"], center, radius, width)
 
+    @staticmethod
+    def _heat_color(candidate: CandidateScore, total: int) -> tuple[int, int, int]:
+        """Đổi thứ hạng thành dải xanh-vàng-đỏ ổn định với mọi thang điểm."""
+        ratio = 0.0 if total <= 1 else (candidate.rank - 1) / (total - 1)
+        green = COLORS["success"]
+        yellow = (250, 204, 21)
+        red = COLORS["danger"]
+        if ratio <= 0.5:
+            local_ratio = ratio * 2
+            start, end = green, yellow
+        else:
+            local_ratio = (ratio - 0.5) * 2
+            start, end = yellow, red
+        return tuple(
+            round(start_value + (end_value - start_value) * local_ratio)
+            for start_value, end_value in zip(start, end)
+        )
+
+    @staticmethod
+    def _blend_color(
+        base: tuple[int, int, int],
+        overlay: tuple[int, int, int],
+        strength: float = 0.46,
+    ) -> tuple[int, int, int]:
+        return tuple(
+            round(base_value * (1 - strength) + overlay_value * strength)
+            for base_value, overlay_value in zip(base, overlay)
+        )
+
     def draw(
         self,
         surface: pygame.Surface,
@@ -85,8 +119,12 @@ class BoardView:
         review_index: int,
         result_notice_started_at: int,
         result_notice_ms: int,
+        *,
+        show_analysis: bool = False,
+        analysis: SearchAnalysis | None = None,
+        mouse_position: tuple[int, int] | None = None,
     ) -> None:
-        """Vẽ trạng thái bàn cờ trực tiếp hoặc tại một mốc lịch sử."""
+        """Vẽ bàn cờ trực tiếp hoặc tại một mốc lịch sử."""
         draw_panel(
             surface,
             self.PANEL_RECT,
@@ -111,6 +149,12 @@ class BoardView:
             set(state.winning_line) if review_index == len(state.history) else set()
         )
         last_move = state.history[review_index - 1] if review_index > 0 else None
+        candidates = (
+            {(item.row, item.col): item for item in analysis.candidates}
+            if show_analysis and analysis is not None
+            else {}
+        )
+        candidate_total = len(candidates)
 
         for row in range(settings.rows):
             for col in range(settings.cols):
@@ -122,6 +166,14 @@ class BoardView:
                     max(1, round(cell_size)),
                     max(1, round(cell_size)),
                 )
+                candidate = candidates.get((row, col))
+                if candidate is not None:
+                    color = self._heat_color(candidate, candidate_total)
+                    pygame.draw.rect(
+                        surface,
+                        self._blend_color(COLORS["board"], color),
+                        cell_rect,
+                    )
                 if (row, col) in winning:
                     pygame.draw.rect(surface, (187, 247, 208), cell_rect)
                 pygame.draw.rect(
@@ -145,6 +197,16 @@ class BoardView:
                             center,
                             max(2, int(cell_size * 0.07)),
                         )
+                if candidate is not None and candidate.selected:
+                    pygame.draw.rect(
+                        surface,
+                        COLORS["accent"],
+                        cell_rect.inflate(-2, -2),
+                        width=max(2, round(cell_size * 0.08)),
+                    )
+
+        if show_analysis:
+            self._draw_analysis_status(surface, board_rect, analysis)
 
         notice_age = pygame.time.get_ticks() - result_notice_started_at
         show_result_notice = (
@@ -154,6 +216,95 @@ class BoardView:
         )
         if show_result_notice:
             self._draw_result_notice(surface, state)
+
+        if show_analysis and analysis is not None:
+            self._draw_analysis_tooltip(
+                surface,
+                settings,
+                analysis,
+                (
+                    mouse_position
+                    if mouse_position is not None
+                    else pygame.mouse.get_pos()
+                ),
+            )
+
+    def _draw_analysis_status(
+        self,
+        surface: pygame.Surface,
+        board_rect: pygame.Rect,
+        analysis: SearchAnalysis | None,
+    ) -> None:
+        text = (
+            f"AI HEATMAP • {analysis.score_label} • {len(analysis.candidates)} ứng viên"
+            if analysis is not None
+            else "AI HEATMAP • Không có dữ liệu cho nước đang xem"
+        )
+        font = FontCache.get(11, True)
+        text_image = font.render(text, True, COLORS["text"])
+        badge = text_image.get_rect(
+            bottomleft=(board_rect.left + 10, board_rect.bottom - 10)
+        ).inflate(16, 10)
+        pygame.draw.rect(surface, (15, 23, 42), badge, border_radius=7)
+        surface.blit(text_image, text_image.get_rect(center=badge.center))
+
+    def _draw_analysis_tooltip(
+        self,
+        surface: pygame.Surface,
+        settings: GameSettings,
+        analysis: SearchAnalysis,
+        mouse_position: tuple[int, int],
+    ) -> None:
+        cell = self.cell_at(mouse_position, settings)
+        if cell is None:
+            return
+        candidate = next(
+            (item for item in analysis.candidates if (item.row, item.col) == cell),
+            None,
+        )
+        if candidate is None:
+            return
+
+        notation = f"{column_name(candidate.col)}{candidate.row + 1}"
+        lines = [
+            f"{notation}  •  Rank #{candidate.rank}/{len(analysis.candidates)}",
+            f"{analysis.score_label}: {format_search_score(candidate.score)}",
+        ]
+        details: list[str] = []
+        if candidate.selected:
+            details.append("Nước được chọn")
+        if candidate.terminal_win:
+            details.append("Thắng ngay")
+        if candidate.pruned_branches:
+            details.append(f"Pruned: {candidate.pruned_branches}")
+        if details:
+            lines.append("  •  ".join(details))
+
+        fonts = [FontCache.get(13, True)] + [FontCache.get(12) for _ in lines[1:]]
+        images = [
+            font.render(line, True, COLORS["text"]) for font, line in zip(fonts, lines)
+        ]
+        width = max(image.get_width() for image in images) + 24
+        height = (
+            sum(image.get_height() for image in images) + 18 + 4 * (len(images) - 1)
+        )
+        left = min(mouse_position[0] + 16, surface.get_width() - width - 8)
+        top = min(mouse_position[1] + 16, surface.get_height() - height - 8)
+        left = max(8, left)
+        top = max(8, top)
+        tooltip = pygame.Rect(left, top, width, height)
+        pygame.draw.rect(surface, COLORS["black"], tooltip, border_radius=9)
+        pygame.draw.rect(
+            surface,
+            COLORS["primary"],
+            tooltip,
+            width=1,
+            border_radius=9,
+        )
+        line_y = tooltip.top + 9
+        for image in images:
+            surface.blit(image, (tooltip.left + 12, line_y))
+            line_y += image.get_height() + 4
 
     def _draw_result_notice(self, surface: pygame.Surface, state: GameState) -> None:
         overlay = pygame.Surface((430, 100), pygame.SRCALPHA)

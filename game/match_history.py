@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from utils.helpers import SearchMetrics
+from utils.helpers import SearchAnalysis, SearchMetrics
 
 
 @dataclass(frozen=True)
@@ -17,6 +17,25 @@ class MoveMetricRecord:
     algorithm_key: str | None
     depth: int
     metrics: SearchMetrics
+
+    @property
+    def analysis(self) -> SearchAnalysis | None:
+        return self.metrics.analysis
+
+
+def metric_record_for_view(
+    move_metrics: dict[int, MoveMetricRecord],
+    review_index: int,
+    history_length: int,
+) -> MoveMetricRecord | None:
+    """Lấy đúng metric của nước review hoặc AI gần nhất ở chế độ live."""
+    if review_index != history_length:
+        return move_metrics.get(review_index)
+    for move_number in range(history_length, 0, -1):
+        record = move_metrics.get(move_number)
+        if record is not None and record.algorithm_key is not None:
+            return record
+    return None
 
 
 @dataclass(frozen=True)

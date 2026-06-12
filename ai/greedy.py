@@ -10,6 +10,7 @@ from game.rules import check_win
 from utils.helpers import (
     WIN_SCORE,
     SearchMetrics,
+    build_search_analysis,
     evaluate_board,
     ordered_moves,
 )
@@ -38,20 +39,29 @@ class GreedyAI(GameAI):
 
         best_move: tuple[int, int] | None = None
         best_score = float("-inf")
+        candidate_results: list[tuple[int, int, float, bool, int]] = []
 
         for row, col in moves:
             metrics.nodes_expanded += 1
             working.place(row, col, player)
-            if check_win(working, row, col, player, win_length):
+            terminal_win = check_win(working, row, col, player, win_length)
+            if terminal_win:
                 score = float(WIN_SCORE)
             else:
                 score = evaluate_board(working, player, win_length)
             working.remove(row, col)
+            candidate_results.append((row, col, score, terminal_win, 0))
 
             if score > best_score:
                 best_score = score
                 best_move = (row, col)
 
         metrics.score = best_score if best_move is not None else 0.0
+        metrics.analysis = build_search_analysis(
+            self.key,
+            "Heuristic",
+            candidate_results,
+            best_move,
+        )
         metrics.execution_time_ms = (perf_counter() - start) * 1000
         return best_move, metrics

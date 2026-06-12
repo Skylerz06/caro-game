@@ -14,6 +14,35 @@ WIN_SCORE = 1_000_000_000
 BRANCH_LIMITS = {1: 20, 2: 14, 3: 9, 4: 7}
 
 
+@dataclass(frozen=True)
+class CandidateScore:
+    """Điểm quyết định của một nước ứng viên tại tầng gốc."""
+
+    row: int
+    col: int
+    score: float
+    rank: int
+    selected: bool = False
+    terminal_win: bool = False
+    pruned_branches: int = 0
+
+
+@dataclass(frozen=True)
+class SearchAnalysis:
+    """Snapshot gọn để giải thích cách AI chọn nước đi."""
+
+    algorithm_key: str
+    score_label: str
+    candidates: tuple[CandidateScore, ...]
+
+    @property
+    def selected(self) -> CandidateScore | None:
+        return next(
+            (candidate for candidate in self.candidates if candidate.selected),
+            None,
+        )
+
+
 @dataclass
 class SearchMetrics:
     """Thông tin phục vụ panel đo lường và thí nghiệm."""
@@ -23,6 +52,54 @@ class SearchMetrics:
     score: float = 0.0
     depth: int = 0
     pruned_branches: int = 0
+    analysis: SearchAnalysis | None = None
+
+
+def build_search_analysis(
+    algorithm_key: str,
+    score_label: str,
+    results: list[tuple[int, int, float, bool, int]],
+    selected_move: tuple[int, int] | None,
+) -> SearchAnalysis:
+    """Xếp hạng kết quả tầng gốc mà không lượng giá lại bàn cờ."""
+    ranked_indices = sorted(
+        range(len(results)),
+        key=lambda index: (-results[index][2], index),
+    )
+    ranks = {
+        result_index: rank for rank, result_index in enumerate(ranked_indices, start=1)
+    }
+    candidates = tuple(
+        CandidateScore(
+            row=row,
+            col=col,
+            score=score,
+            rank=ranks[index],
+            selected=(row, col) == selected_move,
+            terminal_win=terminal_win,
+            pruned_branches=pruned_branches,
+        )
+        for index, (row, col, score, terminal_win, pruned_branches) in enumerate(
+            results
+        )
+    )
+    return SearchAnalysis(
+        algorithm_key=algorithm_key,
+        score_label=score_label,
+        candidates=candidates,
+    )
+
+
+def format_search_score(score: float) -> str:
+    """Rút gọn điểm lớn để hiển thị nhất quán trong UI."""
+    absolute = abs(score)
+    if absolute >= 1_000_000_000:
+        return f"{score / 1_000_000_000:.2f}B"
+    if absolute >= 1_000_000:
+        return f"{score / 1_000_000:.2f}M"
+    if absolute >= 1_000:
+        return f"{score / 1_000:.2f}K"
+    return f"{score:,.1f}"
 
 
 def opponent(player: int) -> int:
@@ -117,9 +194,7 @@ def evaluate_board(
 ) -> float:
     """Hàm lượng giá: chuỗi của ta cộng điểm, chuỗi địch trừ điểm."""
     enemy = opponent(maximizing_player)
-    score = _score_player_patterns(
-        board, maximizing_player, win_length
-    )
+    score = _score_player_patterns(board, maximizing_player, win_length)
     # Phòng thủ được ưu tiên nhẹ để AI ít bỏ sót đe dọa.
     score -= 1.12 * _score_player_patterns(board, enemy, win_length)
 
@@ -132,9 +207,7 @@ def evaluate_board(
                 continue
             center_bonus = max(
                 0.0,
-                board.rows + board.cols
-                - abs(row - center_row)
-                - abs(col - center_col),
+                board.rows + board.cols - abs(row - center_row) - abs(col - center_col),
             )
             score += center_bonus if value == maximizing_player else -center_bonus
     return score
@@ -189,17 +262,13 @@ def ordered_moves(
         priority = attack_score + 1.25 * defense_score
 
         board.place(row, col, player)
-        is_winning_move = check_win(
-            board, row, col, player, win_length
-        )
+        is_winning_move = check_win(board, row, col, player, win_length)
         if is_winning_move:
             priority += WIN_SCORE
         board.remove(row, col)
 
         board.place(row, col, enemy)
-        is_blocking_move = check_win(
-            board, row, col, enemy, win_length
-        )
+        is_blocking_move = check_win(board, row, col, enemy, win_length)
         if is_blocking_move:
             priority += WIN_SCORE / 2
         board.remove(row, col)

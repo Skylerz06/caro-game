@@ -14,10 +14,14 @@ from config.settings import (
     GameSettings,
 )
 from game.board import PLAYER_X
-from game.match_history import MatchHistoryRecord, MoveMetricRecord
+from game.match_history import (
+    MatchHistoryRecord,
+    MoveMetricRecord,
+    metric_record_for_view,
+)
 from game.state import GameState
 from ui.components import draw_metric_card, draw_panel, draw_text
-from utils.helpers import player_label
+from utils.helpers import format_search_score, player_label
 
 
 @dataclass(frozen=True)
@@ -54,13 +58,11 @@ class MetricsPanel:
     def _metric_record(
         context: MetricsPanelContext,
     ) -> MoveMetricRecord | None:
-        if context.review_index != len(context.state.history):
-            return context.move_metrics.get(context.review_index)
-        for move_number in range(len(context.state.history), 0, -1):
-            record = context.move_metrics.get(move_number)
-            if record is not None and record.algorithm_key is not None:
-                return record
-        return None
+        return metric_record_for_view(
+            context.move_metrics,
+            context.review_index,
+            len(context.state.history),
+        )
 
     @staticmethod
     def _metric_player(
@@ -140,6 +142,19 @@ class MetricsPanel:
             if record is not None and record.algorithm_key is not None
             else None
         )
+        analysis = record.analysis if record is not None else None
+        selected_candidate = analysis.selected if analysis is not None else None
+        decision_note = (
+            f"{analysis.score_label}: {format_search_score(selected_candidate.score)}"
+            if analysis is not None and selected_candidate is not None
+            else ""
+        )
+        node_note_parts = []
+        if analysis is not None:
+            node_note_parts.append(f"Candidates: {len(analysis.candidates)}")
+        if metric is not None and metric.pruned_branches:
+            node_note_parts.append(f"Pruned: {metric.pruned_branches:,}")
+        node_note = " | ".join(node_note_parts)
 
         if live_ai_turn and current_agent is not None:
             current_ai = current_agent.name
@@ -206,7 +221,7 @@ class MetricsPanel:
                     )
                 ),
                 COLORS["accent"],
-                "",
+                decision_note,
             ),
             (
                 "Nodes Expanded",
@@ -220,11 +235,7 @@ class MetricsPanel:
                     )
                 ),
                 COLORS["text"],
-                (
-                    f"Pruned: {metric.pruned_branches:,}"
-                    if metric is not None and metric.pruned_branches
-                    else ""
-                ),
+                node_note,
             ),
             ("Current AI", current_ai, COLORS["primary"], depth_note),
             (

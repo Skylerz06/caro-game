@@ -11,6 +11,7 @@ from utils.helpers import (
     WIN_SCORE,
     SearchMetrics,
     branch_limit_for_depth,
+    build_search_analysis,
     evaluate_board,
     opponent,
     ordered_moves,
@@ -45,11 +46,14 @@ class AlphaBetaAI(GameAI):
         beta = float("inf")
         best_move: tuple[int, int] | None = None
         best_score = float("-inf")
+        candidate_results: list[tuple[int, int, float, bool, int]] = []
 
         for row, col in moves:
             working.place(row, col, player)
             metrics.nodes_expanded += 1
-            if check_win(working, row, col, player, win_length):
+            terminal_win = check_win(working, row, col, player, win_length)
+            pruned_before = metrics.pruned_branches
+            if terminal_win:
                 score = float(WIN_SCORE + depth)
             else:
                 score = self._alphabeta(
@@ -66,6 +70,15 @@ class AlphaBetaAI(GameAI):
                     limit,
                 )
             working.remove(row, col)
+            candidate_results.append(
+                (
+                    row,
+                    col,
+                    score,
+                    terminal_win,
+                    metrics.pruned_branches - pruned_before,
+                )
+            )
 
             if score > best_score:
                 best_score = score
@@ -73,6 +86,12 @@ class AlphaBetaAI(GameAI):
             alpha = max(alpha, best_score)
 
         metrics.score = best_score if best_move is not None else 0.0
+        metrics.analysis = build_search_analysis(
+            self.key,
+            "Alpha-Beta Value",
+            candidate_results,
+            best_move,
+        )
         metrics.execution_time_ms = (perf_counter() - start) * 1000
         return best_move, metrics
 
@@ -100,9 +119,7 @@ class AlphaBetaAI(GameAI):
         if depth <= 0:
             return evaluate_board(board, maximizing_player, win_length)
 
-        moves = ordered_moves(
-            board, current_player, win_length, branch_limit
-        )
+        moves = ordered_moves(board, current_player, win_length, branch_limit)
         if not moves:
             return evaluate_board(board, maximizing_player, win_length)
 

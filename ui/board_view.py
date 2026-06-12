@@ -213,16 +213,20 @@ class BoardView:
             self._draw_result_notice(surface, state)
 
         if show_analysis and analysis is not None:
-            self._draw_analysis_tooltip(
-                surface,
-                settings,
-                analysis,
-                (
-                    mouse_position
-                    if mouse_position is not None
-                    else pygame.mouse.get_pos()
-                ),
+            pointer = (
+                mouse_position
+                if mouse_position is not None
+                else pygame.mouse.get_pos()
             )
+            cell = self.cell_at(pointer, settings)
+            candidate = candidates.get(cell) if cell is not None else None
+            if candidate is not None:
+                self._draw_analysis_tooltip(
+                    surface,
+                    analysis,
+                    candidate,
+                    pointer,
+                )
 
     def _draw_analysis_status(
         self,
@@ -246,20 +250,10 @@ class BoardView:
     def _draw_analysis_tooltip(
         self,
         surface: pygame.Surface,
-        settings: GameSettings,
         analysis: SearchAnalysis,
+        candidate: CandidateScore,
         mouse_position: tuple[int, int],
     ) -> None:
-        cell = self.cell_at(mouse_position, settings)
-        if cell is None:
-            return
-        candidate = next(
-            (item for item in analysis.candidates if (item.row, item.col) == cell),
-            None,
-        )
-        if candidate is None:
-            return
-
         notation = f"{column_name(candidate.col)}{candidate.row + 1}"
         lines = [
             f"{notation}  •  Rank #{candidate.rank}/{len(analysis.candidates)}",

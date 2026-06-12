@@ -26,6 +26,8 @@ class ReplayScreen:
         self.back_button = Button(pygame.Rect(24, 18, 132, 44), "QUAY LẠI")
         self.board_view = BoardView()
         self.metrics_panel = MetricsPanel()
+        self.ai_players = {}
+        self.session_stats = new_session_stats()
 
     def open(self, record: MatchHistoryRecord) -> None:
         self.record = record
@@ -107,10 +109,10 @@ class ReplayScreen:
                 settings=self.settings,
                 state=self.state,
                 review_index=self.history_bar.review_index,
-                ai_players={},
+                ai_players=self.ai_players,
                 move_metrics=self.move_metrics,
                 last_ai_player=None,
-                session_stats=new_session_stats(),
+                session_stats=self.session_stats,
                 current_summary=self.record,
                 is_ai_thinking=False,
                 ai_error="",

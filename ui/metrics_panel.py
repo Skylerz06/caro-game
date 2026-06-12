@@ -165,10 +165,12 @@ class MetricsPanel:
         stats = (
             context.session_stats[metric_player]
             if metric_player in context.ai_players
-            else {"wins": 0, "draws": 0, "losses": 0, "games": 0}
+            else None
         )
         win_rate = (
-            f"{stats['wins'] / stats['games'] * 100:.1f}%" if stats["games"] else "N/A"
+            f"{stats['wins'] / stats['games'] * 100:.1f}%"
+            if stats is not None and stats["games"]
+            else "N/A"
         )
         if state.game_over and context.current_summary is not None:
             if context.current_summary.ai_move_count:
@@ -214,7 +216,7 @@ class MetricsPanel:
                 COLORS["success"],
                 (
                     f"W-D-L: {stats['wins']}-{stats['draws']}-{stats['losses']}"
-                    if stats["games"]
+                    if stats is not None and stats["games"]
                     else "Session"
                 ),
             ),

@@ -28,7 +28,6 @@ from utils.helpers import branch_limit_for_depth
 class SettingsScreen:
     def __init__(self) -> None:
         self.draft = GameSettings()
-        self.focus_ai = False
         self.steppers: dict[str, Stepper] = {}
         self.selectors: dict[str, ChoiceSelector] = {}
         self.controls: list[Stepper | ChoiceSelector] = []
@@ -39,9 +38,8 @@ class SettingsScreen:
         self.default_button = Button(pygame.Rect(340, 665, 190, 48), "MẶC ĐỊNH")
         self.open(GameSettings())
 
-    def open(self, settings: GameSettings, focus_ai: bool = False) -> None:
+    def open(self, settings: GameSettings) -> None:
         self.draft = GameSettings.from_dict(settings.to_dict())
-        self.focus_ai = focus_ai
         stepper_specs = (
             ("rows", (165, 185, 410, 82), "SỐ HÀNG (m)", self.draft.rows, 3, 20, ""),
             ("cols", (165, 286, 410, 82), "SỐ CỘT (n)", self.draft.cols, 3, 24, ""),
@@ -153,7 +151,7 @@ class SettingsScreen:
         if self.back_button.handle_event(event):
             return "back", None
         if self.default_button.handle_event(event):
-            self.open(GameSettings(), self.focus_ai)
+            self.open(GameSettings())
             return None
         if self.save_button.handle_event(event):
             self._sync_draft()
@@ -188,7 +186,7 @@ class SettingsScreen:
             surface,
             pygame.Rect(120, 120, 1040, 620),
             COLORS["panel"],
-            border_color=COLORS["primary"] if self.focus_ai else (48, 69, 101),
+            border_color=(48, 69, 101),
         )
         draw_text(surface, "LUẬT CHƠI", 18, COLORS["accent"], (165, 145), bold=True)
         draw_text(surface, "CHẾ ĐỘ & AI", 18, COLORS["primary"], (650, 145), bold=True)

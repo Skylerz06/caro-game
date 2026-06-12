@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 import pygame
 
@@ -12,7 +13,7 @@ from config.settings import COLORS
 class FontCache:
     """Cache font để tránh tạo lại font mỗi frame."""
 
-    _fonts: dict[tuple[int, bool], pygame.font.Font] = {}
+    _fonts: ClassVar[dict[tuple[int, bool], pygame.font.Font]] = {}
 
     @classmethod
     def get(cls, size: int, bold: bool = False) -> pygame.font.Font:
@@ -43,10 +44,10 @@ def draw_text(
 class GradientCache:
     """Cache nền gradient theo kích thước và bảng màu."""
 
-    _surfaces: dict[
+    _surfaces: ClassVar[dict[
         tuple[tuple[int, int], tuple[int, int, int], tuple[int, int, int]],
         pygame.Surface,
-    ] = {}
+    ]] = {}
 
     @classmethod
     def get(
@@ -68,11 +69,6 @@ class GradientCache:
                 pygame.draw.rect(gradient, color, (0, y, width, 3))
             cls._surfaces[key] = gradient
         return cls._surfaces[key]
-
-    @classmethod
-    def clear(cls) -> None:
-        cls._surfaces.clear()
-
 
 def draw_gradient(
     surface: pygame.Surface,
@@ -213,7 +209,7 @@ class IconButton:
 
 
 class _ValueControl:
-    """Shared frame for controls with two value buttons."""
+    """Khung dùng chung cho control có hai nút đổi giá trị."""
 
     value_size = 18
 
@@ -223,14 +219,18 @@ class _ValueControl:
         self.enabled = True
         self.left_rect = pygame.Rect(rect.left + 12, rect.bottom - 42, 42, 32)
         self.right_rect = pygame.Rect(rect.right - 54, rect.bottom - 42, 42, 32)
+        self._direction_buttons = (
+            (IconButton(self.left_rect, "left"), -1),
+            (IconButton(self.right_rect, "right"), 1),
+        )
 
     def handle_event(self, event: pygame.event.Event) -> bool:
-        if not self.enabled or not is_left_click(event):
+        if not self.enabled:
             return False
-        if self.left_rect.collidepoint(event.pos):
-            return self._change(-1)
-        if self.right_rect.collidepoint(event.pos):
-            return self._change(1)
+        for button, direction in self._direction_buttons:
+            button.enabled = self.enabled
+            if button.handle_event(event):
+                return self._change(direction)
         return False
 
     def draw(self, surface: pygame.Surface) -> None:
@@ -256,8 +256,9 @@ class _ValueControl:
         )
 
     def _draw_controls(self, surface: pygame.Surface) -> None:
-        for rect, icon in ((self.left_rect, "left"), (self.right_rect, "right")):
-            IconButton(rect, icon, self.enabled).draw(surface)
+        for button, _ in self._direction_buttons:
+            button.enabled = self.enabled
+            button.draw(surface)
 
     def _change(self, direction: int) -> bool:
         raise NotImplementedError
@@ -268,7 +269,7 @@ class _ValueControl:
 
 
 class Stepper(_ValueControl):
-    """Integer control using minus and plus buttons."""
+    """Control số nguyên dùng nút trừ và cộng."""
 
     value_size = 23
 
@@ -286,8 +287,6 @@ class Stepper(_ValueControl):
         self.minimum = minimum
         self.maximum = maximum
         self.suffix = suffix
-        self.minus_rect = self.left_rect
-        self.plus_rect = self.right_rect
 
     def _change(self, direction: int) -> bool:
         old_value = self.value
@@ -318,7 +317,7 @@ class Stepper(_ValueControl):
 
 
 class ChoiceSelector(_ValueControl):
-    """Cycle through choices with left and right buttons."""
+    """Control tuần tự qua lựa chọn bằng nút trái và phải."""
 
     def __init__(
         self,

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-
 import pygame
 
 from config.settings import COLORS, SCREEN_HEIGHT, SCREEN_WIDTH
@@ -27,7 +25,7 @@ class HistoryScreen:
 
     @property
     def page_count(self) -> int:
-        return max(1, math.ceil(len(self.records) / self.PAGE_SIZE))
+        return max(1, (len(self.records) + self.PAGE_SIZE - 1) // self.PAGE_SIZE)
 
     def _page_records(self) -> list[MatchHistoryRecord]:
         start = self.page * self.PAGE_SIZE
@@ -44,6 +42,10 @@ class HistoryScreen:
             )
             self.replay_buttons.append((button, record))
 
+    def _sync_page_buttons(self) -> None:
+        self.prev_page_button.enabled = self.page > 0
+        self.next_page_button.enabled = self.page + 1 < self.page_count
+
     def open(self, records: list[MatchHistoryRecord]) -> None:
         self.records = sorted(
             records,
@@ -52,6 +54,7 @@ class HistoryScreen:
         )
         self.page = 0
         self._rebuild_replay_buttons()
+        self._sync_page_buttons()
 
     def handle_event(
         self, event: pygame.event.Event
@@ -59,15 +62,16 @@ class HistoryScreen:
         if self.back_button.handle_event(event):
             return "back"
 
-        self.prev_page_button.enabled = self.page > 0
-        self.next_page_button.enabled = self.page + 1 < self.page_count
+        self._sync_page_buttons()
         if self.prev_page_button.handle_event(event):
             self.page -= 1
             self._rebuild_replay_buttons()
+            self._sync_page_buttons()
             return None
         if self.next_page_button.handle_event(event):
             self.page += 1
             self._rebuild_replay_buttons()
+            self._sync_page_buttons()
             return None
         for button, record in self.replay_buttons:
             if button.handle_event(event):
@@ -75,8 +79,7 @@ class HistoryScreen:
         return None
 
     def update(self) -> None:
-        self.prev_page_button.enabled = self.page > 0
-        self.next_page_button.enabled = self.page + 1 < self.page_count
+        self._sync_page_buttons()
 
     def _draw_record(
         self,

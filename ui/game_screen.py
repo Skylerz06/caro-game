@@ -12,7 +12,7 @@ import pygame
 from ai import create_ai
 from ai.base import GameAI
 from config.settings import COLORS, MATCH_MODE_LABELS, GameSettings
-from game.board import Board, PLAYER_O, PLAYER_X
+from game.board import PLAYER_O, PLAYER_X, Board
 from game.history_store import MatchHistoryStore
 from game.match_history import (
     MatchHistoryRecord,
@@ -46,33 +46,14 @@ class GameScreen:
         match_history: list[MatchHistoryRecord] | None = None,
         history_store: MatchHistoryStore | None = None,
     ) -> None:
-        self.settings = settings
         self.history_store = history_store
         self.board_view = BoardView()
         self.metrics_panel = MetricsPanel()
         self.history_bar = MoveHistoryBar(analysis_enabled=False)
-        self.state = GameState(
-            settings.rows,
-            settings.cols,
-            settings.win_length,
-            self._starting_player(settings),
-        )
-        self.ai_players: dict[int, GameAI] = {}
-        self.last_ai_player: int | None = None
-        self.last_action_time = pygame.time.get_ticks()
-        self.result_recorded = False
         self.search_generation = 0
         self.ai_search_thread: Thread | None = None
         self.ai_results: Queue = Queue()
-        self.ai_error = ""
-        self.game_seed = 0
-        self.move_metrics: dict[int, MoveMetricRecord] = {}
-        self.current_summary: MatchHistoryRecord | None = None
         self.match_history = match_history if match_history is not None else []
-        self.history_error = ""
-        self.search_totals = SearchTotals()
-        self.result_notice_started_at = 0
-        self.session_stats = new_session_stats()
 
         self.menu_button = Button(pygame.Rect(24, 18, 116, 44), "MENU")
         self.student_panel = pygame.Rect(310, 18, 570, 44)
@@ -123,7 +104,7 @@ class GameScreen:
         return PLAYER_X
 
     def _create_ai_players(self) -> None:
-        """Create configured agents from one new seed per match."""
+        """Tạo các AI đã cấu hình từ một seed mới cho mỗi ván."""
         self.game_seed = new_global_seed()
         keys = {}
         if self.settings.match_mode == "human_ai":
@@ -395,7 +376,10 @@ class GameScreen:
         )
         draw_text(
             surface,
-            f"{self.settings.rows} x {self.settings.cols}  •  k={self.settings.win_length}",
+            (
+                f"{self.settings.rows} x {self.settings.cols}"
+                f"  •  k={self.settings.win_length}"
+            ),
             13,
             COLORS["muted"],
             (164, 51),

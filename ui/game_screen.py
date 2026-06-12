@@ -68,6 +68,7 @@ class GameScreen:
         }
 
         self.menu_button = Button(pygame.Rect(24, 18, 116, 44), "MENU")
+        self.student_panel = pygame.Rect(310, 18, 570, 44)
         self.restart_button = Button(
             pygame.Rect(1038, 18, 142, 44), "CHƠI LẠI"
         )
@@ -893,6 +894,23 @@ class GameScreen:
             surface, COLORS["background"], COLORS["background_2"]
         )
         self.menu_button.draw(surface)
+        draw_panel(
+            surface,
+            self.student_panel,
+            COLORS["panel"],
+            radius=10,
+            border_color=(57, 78, 110),
+            shadow=False,
+        )
+        draw_text(
+            surface,
+            "24110158 - Nguyễn Gia Bảo, 24110157 - Nguyễn Thế Ân",
+            13,
+            COLORS["text"],
+            self.student_panel.center,
+            bold=True,
+            anchor="center",
+        )
         self.history_button.draw(surface)
         self.restart_button.draw(surface)
         self.settings_button.draw(surface)

@@ -48,11 +48,13 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 │   ├── minimax.py
 │   └── alphabeta.py
 ├── ui/
+│   ├── board_view.py
 │   ├── components.py
+│   ├── game_screen.py
 │   ├── history_screen.py
 │   ├── menu.py
-│   ├── settings_screen.py
-│   └── game_screen.py
+│   ├── metrics_panel.py
+│   └── settings_screen.py
 ├── experiments/
 │   └── evaluate.py
 └── utils/
@@ -75,10 +77,12 @@ phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
 | `ai/minimax.py` | Minimax giới hạn độ sâu |
 | `ai/alphabeta.py` | Minimax có cắt tỉa Alpha-Beta |
 | `ui/components.py` | Button, selector, stepper, font và panel |
+| `ui/board_view.py` | Hình học, ánh xạ click và render bàn cờ động |
+| `ui/metrics_panel.py` | Tổng hợp và hiển thị metrics theo lượt/trận |
 | `ui/menu.py` | Menu trước trận đấu |
 | `ui/history_screen.py` | Xem lịch sử các ván đã kết thúc trong phiên chạy |
 | `ui/settings_screen.py` | Cấu hình m,n,k, mode, AI và depth |
-| `ui/game_screen.py` | Bàn cờ, metrics, lịch sử và điều phối lượt AI |
+| `ui/game_screen.py` | Điều phối trận đấu, AI, input và move history |
 | `experiments/evaluate.py` | Benchmark AI vs AI trên terminal |
 | `utils/helpers.py` | Heuristic, sắp xếp nước và metrics dùng chung |
 | `utils/seedmaker.py` | Sinh global seed và tách seed cho opening/X/O |

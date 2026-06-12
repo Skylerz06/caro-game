@@ -35,6 +35,7 @@ class ReplayScreen:
                 "cols": record.cols,
                 "win_length": record.win_length,
                 "match_mode": record.match_mode,
+                "human_ai_first": record.human_ai_first,
                 "ai_x": record.ai_x_key,
                 "ai_o": record.ai_o_key,
             }

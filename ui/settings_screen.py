@@ -8,6 +8,8 @@ from config.settings import (
     ALGORITHM_LABELS,
     ALGORITHMS,
     COLORS,
+    HUMAN_AI_FIRST_LABELS,
+    HUMAN_AI_FIRST_OPTIONS,
     MATCH_MODE_LABELS,
     MATCH_MODES,
     GameSettings,
@@ -98,6 +100,13 @@ class SettingsScreen:
                 algorithms,
                 self.draft.ai_o,
             ),
+            (
+                "human_ai_first",
+                (165, 488, 410, 82),
+                "BÊN ĐI TRƯỚC (NGƯỜI vs AI)",
+                [(key, HUMAN_AI_FIRST_LABELS[key]) for key in HUMAN_AI_FIRST_OPTIONS],
+                self.draft.human_ai_first,
+            ),
         )
         self.selectors = {
             name: ChoiceSelector(pygame.Rect(*rect), label, options, selected)
@@ -110,6 +119,7 @@ class SettingsScreen:
             self.selectors["mode"],
             self.selectors["ai_x"],
             self.selectors["ai_o"],
+            self.selectors["human_ai_first"],
             self.steppers["minimax_depth"],
             self.steppers["alphabeta_depth"],
         ]
@@ -117,6 +127,7 @@ class SettingsScreen:
 
     def _update_enabled_controls(self) -> None:
         mode = self.selectors["mode"].selected
+        self.selectors["human_ai_first"].enabled = mode == "human_ai"
         self.selectors["ai_x"].enabled = mode == "ai_ai"
         self.selectors["ai_o"].enabled = mode in ("human_ai", "ai_ai")
 
@@ -128,6 +139,7 @@ class SettingsScreen:
         steps["win"].value = min(steps["win"].value, steps["win"].maximum)
         self.draft.win_length = steps["win"].value
         self.draft.match_mode = choices["mode"].selected
+        self.draft.human_ai_first = choices["human_ai_first"].selected
         self.draft.ai_x = choices["ai_x"].selected
         self.draft.ai_o = choices["ai_o"].selected
         self.draft.minimax_depth = steps["minimax_depth"].value
@@ -197,8 +209,8 @@ class SettingsScreen:
                 anchor="midtop",
             )
         notes = (
-            ("Kích thước hợp lệ: 3-20 hàng, 3-24 cột, k từ 3-8.", (165, 500)),
-            ("Trong Người vs AI, người chơi cầm X và đi trước.", (165, 526)),
+            ("Người luôn cầm X, AI luôn cầm O; có thể chọn O đi trước.", (165, 586)),
+            ("Kích thước hợp lệ: 3-20 hàng, 3-24 cột, k từ 3-8.", (165, 612)),
             (
                 "Depth được cấu hình riêng cho từng thuật toán; Greedy cố định 1 ply.",
                 (650, 608),

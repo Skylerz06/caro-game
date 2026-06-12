@@ -34,12 +34,21 @@ def column_name(col: int) -> str:
 class GameState:
     """Điều phối lượt chơi, kết quả và khả năng xem lại."""
 
-    def __init__(self, rows: int, cols: int, win_length: int) -> None:
+    def __init__(
+        self,
+        rows: int,
+        cols: int,
+        win_length: int,
+        starting_player: int = PLAYER_X,
+    ) -> None:
         self.rows = rows
         self.cols = cols
         self.win_length = win_length
+        self.starting_player = (
+            starting_player if starting_player in (PLAYER_X, PLAYER_O) else PLAYER_X
+        )
         self.board = Board(rows, cols)
-        self.current_player = PLAYER_X
+        self.current_player = self.starting_player
         self.winner = EMPTY
         self.is_draw = False
         self.game_over = False
@@ -52,7 +61,7 @@ class GameState:
 
     def reset(self) -> None:
         self.board.reset()
-        self.current_player = PLAYER_X
+        self.current_player = self.starting_player
         self.winner = EMPTY
         self.is_draw = False
         self.game_over = False

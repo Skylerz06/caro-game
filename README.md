@@ -116,7 +116,8 @@ Trong màn hình Settings:
 - Có thể chọn riêng thuật toán cho X và O trong chế độ AI vs AI.
 - Độ sâu Minimax và Alpha-Beta được cấu hình riêng, mỗi thuật toán từ 1 đến 4.
 
-Trong Người vs AI, người chơi cầm X và đi trước. Hai nút mũi tên ở vùng
+Trong Người vs AI, người chơi luôn cầm X và AI luôn cầm O. Có thể chọn người
+chơi X hoặc AI O thực hiện nước đầu tiên. Hai nút mũi tên ở vùng
 `MOVE HISTORY` cho phép lùi/tiến qua các nước đã thực hiện. Khi đang ở chế độ
 `REVIEW`, trận đấu tạm dừng cho đến khi trở lại nước mới nhất (`LIVE`).
 

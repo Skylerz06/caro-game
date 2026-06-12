@@ -253,6 +253,14 @@ class MetricsPanel:
                 f"O: {ALGORITHM_LABELS[settings.ai_o]}"
             )
             draw_text(surface, matchup, 11, COLORS["muted"], (904, 663))
+        elif settings.match_mode == "human_ai":
+            draw_text(
+                surface,
+                f"X: Người chơi  |  O: {ALGORITHM_LABELS[settings.ai_o]}",
+                11,
+                COLORS["muted"],
+                (904, 663),
+            )
         if context.ai_error or context.history_error:
             error = context.ai_error or context.history_error
             prefix = "AI error" if context.ai_error else "History error"

@@ -29,6 +29,11 @@ MATCH_MODE_LABELS = {
     "human_ai": "Người vs AI",
     "ai_ai": "AI vs AI",
 }
+HUMAN_AI_FIRST_OPTIONS = ("human", "ai")
+HUMAN_AI_FIRST_LABELS = {
+    "human": "Người chơi (X)",
+    "ai": "AI (O)",
+}
 
 # Bảng màu thống nhất cho toàn bộ giao diện.
 COLORS = {
@@ -60,6 +65,7 @@ class GameSettings:
     cols: int = 15
     win_length: int = 5
     match_mode: str = "human_ai"
+    human_ai_first: str = "human"
     ai_x: str = "minimax"
     ai_o: str = "alphabeta"
     minimax_depth: int = 2
@@ -86,6 +92,8 @@ class GameSettings:
 
         if self.match_mode not in MATCH_MODES:
             self.match_mode = "human_ai"
+        if self.human_ai_first not in HUMAN_AI_FIRST_OPTIONS:
+            self.human_ai_first = "human"
         if self.ai_x not in ALGORITHMS:
             self.ai_x = "minimax"
         if self.ai_o not in ALGORITHMS:

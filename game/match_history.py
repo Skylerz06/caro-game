@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from game.board import PLAYER_O, PLAYER_X
 from game.state import GameState, Move
 from utils.helpers import SearchAnalysis, SearchMetrics
 
@@ -60,6 +61,7 @@ class MatchHistoryRecord:
     cols: int = 0
     win_length: int = 0
     match_mode: str = "human_human"
+    human_ai_first: str = "human"
     ai_x_key: str = "minimax"
     ai_o_key: str = "alphabeta"
     winner: int = 0
@@ -105,7 +107,17 @@ class MatchHistoryRecord:
         """Dựng lại trạng thái cuối trận và xác thực chuỗi nước đi."""
         if self.rows <= 0 or self.cols <= 0 or self.win_length <= 0:
             raise ValueError("Kích thước replay không hợp lệ.")
-        state = GameState(self.rows, self.cols, self.win_length)
+        starting_player = (
+            PLAYER_O
+            if self.match_mode == "human_ai" and self.human_ai_first == "ai"
+            else PLAYER_X
+        )
+        state = GameState(
+            self.rows,
+            self.cols,
+            self.win_length,
+            starting_player,
+        )
         for expected_number, move in enumerate(self.moves, start=1):
             if move.number != expected_number:
                 raise ValueError("Số thứ tự nước đi không liên tục.")

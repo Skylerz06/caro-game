@@ -122,6 +122,7 @@ def _record_to_dict(record: MatchHistoryRecord) -> dict[str, Any]:
             "cols": record.cols,
             "win_length": record.win_length,
             "match_mode": record.match_mode,
+            "human_ai_first": record.human_ai_first,
             "ai_x": record.ai_x_key,
             "ai_o": record.ai_o_key,
         },
@@ -233,6 +234,9 @@ def _record_from_dict(data: Any) -> MatchHistoryRecord:
         raise ValueError("Kích thước bàn trong lịch sử không hợp lệ.")
     if not 3 <= win_length <= min(8, rows, cols):
         raise ValueError("Điều kiện thắng trong lịch sử không hợp lệ.")
+    human_ai_first = str(config.get("human_ai_first", "human"))
+    if human_ai_first not in ("human", "ai"):
+        raise ValueError("Bên đi trước trong lịch sử không hợp lệ.")
 
     moves = tuple(
         Move(
@@ -268,6 +272,7 @@ def _record_from_dict(data: Any) -> MatchHistoryRecord:
         cols=cols,
         win_length=win_length,
         match_mode=str(config["match_mode"]),
+        human_ai_first=human_ai_first,
         ai_x_key=str(config["ai_x"]),
         ai_o_key=str(config["ai_o"]),
         winner=int(result["winner"]),

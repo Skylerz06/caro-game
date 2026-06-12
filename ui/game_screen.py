@@ -51,7 +51,12 @@ class GameScreen:
         self.board_view = BoardView()
         self.metrics_panel = MetricsPanel()
         self.history_bar = MoveHistoryBar(analysis_enabled=False)
-        self.state = GameState(settings.rows, settings.cols, settings.win_length)
+        self.state = GameState(
+            settings.rows,
+            settings.cols,
+            settings.win_length,
+            self._starting_player(settings),
+        )
         self.ai_players: dict[int, GameAI] = {}
         self.last_ai_player: int | None = None
         self.last_action_time = pygame.time.get_ticks()
@@ -84,6 +89,7 @@ class GameScreen:
                 self.settings.rows,
                 self.settings.cols,
                 self.settings.win_length,
+                self._starting_player(self.settings),
             )
         else:
             self.state.reset()
@@ -109,6 +115,12 @@ class GameScreen:
     def _restart(self) -> None:
         self._invalidate_search()
         self._reset_match(recreate_state=False, reset_session=False)
+
+    @staticmethod
+    def _starting_player(settings: GameSettings) -> int:
+        if settings.match_mode == "human_ai" and settings.human_ai_first == "ai":
+            return PLAYER_O
+        return PLAYER_X
 
     def _create_ai_players(self) -> None:
         """Create configured agents from one new seed per match."""
@@ -330,6 +342,7 @@ class GameScreen:
             cols=self.settings.cols,
             win_length=self.settings.win_length,
             match_mode=self.settings.match_mode,
+            human_ai_first=self.settings.human_ai_first,
             ai_x_key=self.settings.ai_x,
             ai_o_key=self.settings.ai_o,
             winner=self.state.winner,

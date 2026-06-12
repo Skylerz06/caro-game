@@ -12,7 +12,15 @@ from config.settings import (
     MATCH_MODES,
     GameSettings,
 )
-from ui.components import Button, ChoiceSelector, Stepper, draw_gradient, draw_panel, draw_text
+from ui.components import (
+    Button,
+    ChoiceSelector,
+    Stepper,
+    draw_gradient,
+    draw_panel,
+    draw_text,
+)
+from utils.helpers import branch_limit_for_depth
 
 
 class SettingsScreen:
@@ -174,12 +182,26 @@ class SettingsScreen:
         draw_text(surface, "CHẾ ĐỘ & AI", 18, COLORS["primary"], (650, 145), bold=True)
         for control in self.controls:
             control.draw(surface)
+        for key, center_x in (
+            ("minimax_depth", 757),
+            ("alphabeta_depth", 992),
+        ):
+            limit = branch_limit_for_depth(self.steppers[key].value)
+            draw_text(
+                surface,
+                f"Giới hạn nhánh: {limit} ứng viên/nút",
+                12,
+                COLORS["primary"],
+                (center_x, 578),
+                bold=True,
+                anchor="midtop",
+            )
         notes = (
             ("Kích thước hợp lệ: 3-20 hàng, 3-24 cột, k từ 3-8.", (165, 500)),
             ("Trong Người vs AI, người chơi cầm X và đi trước.", (165, 526)),
             (
                 "Depth được cấu hình riêng cho từng thuật toán; Greedy cố định 1 ply.",
-                (650, 596),
+                (650, 608),
             ),
         )
         for text, position in notes:

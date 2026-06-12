@@ -121,7 +121,7 @@ class ReplayScreen:
             surface,
             self.state.history,
             title="REPLAY HISTORY",
-            empty_text="Tr??c n??c ?i ??u ti?n",
+            empty_text="Trước nước đi đầu tiên",
             mode_text="REPLAY",
             mode_color=COLORS["accent"],
         )

@@ -11,7 +11,7 @@ from game.rules import DIRECTIONS, check_win
 
 
 WIN_SCORE = 1_000_000_000
-BRANCH_LIMITS = {1: 20, 2: 14, 3: 9, 4: 7}
+BRANCH_LIMITS = {1: 24, 2: 16, 3: 10, 4: 7}
 
 
 @dataclass(frozen=True)

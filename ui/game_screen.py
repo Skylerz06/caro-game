@@ -121,9 +121,7 @@ class GameScreen:
         self.ai_players = {
             player: create_ai(
                 key,
-                seed=derive_seed(
-                    self.game_seed, f"ai:{player_label(player).lower()}"
-                ),
+                seed=derive_seed(self.game_seed, f"ai:{player_label(player).lower()}"),
             )
             for player, key in keys.items()
         }
@@ -301,7 +299,9 @@ class GameScreen:
             outcome = (
                 "draws"
                 if self.state.is_draw
-                else "wins" if self.state.winner == player else "losses"
+                else "wins"
+                if self.state.winner == player
+                else "losses"
             )
             stats["games"] += 1
             stats[outcome] += 1
@@ -426,7 +426,7 @@ class GameScreen:
             surface,
             self.state.history,
             title="MOVE HISTORY",
-            empty_text="Ch?a c? n??c ?i",
+            empty_text="Chưa có nước đi",
             mode_text="LIVE" if live else "REVIEW",
             mode_color=COLORS["success"] if live else COLORS["accent"],
         )

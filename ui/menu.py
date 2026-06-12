@@ -17,9 +17,7 @@ class MenuScreen:
                 "PLAY",
                 accent=True,
             ),
-            "settings": Button(
-                pygame.Rect(button_x, 404, 340, 58), "SETTINGS"
-            ),
+            "settings": Button(pygame.Rect(button_x, 404, 340, 58), "SETTINGS"),
             "history": Button(
                 pygame.Rect(button_x, 478, 340, 58),
                 "MATCH HISTORY",
@@ -52,9 +50,7 @@ class MenuScreen:
         return None
 
     def draw(self, surface: pygame.Surface) -> None:
-        draw_gradient(
-            surface, COLORS["background"], COLORS["background_2"]
-        )
+        draw_gradient(surface, COLORS["background"], COLORS["background_2"])
 
         surface.blit(self.grid_surface, (0, 0))
 
@@ -68,7 +64,7 @@ class MenuScreen:
 
         draw_text(
             surface,
-            "CARO",
+            "CỜ CARO",
             64,
             COLORS["text"],
             (SCREEN_WIDTH // 2, 145),

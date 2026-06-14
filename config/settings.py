@@ -105,13 +105,9 @@ class GameSettings:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "GameSettings":
-        """Chỉ nhận các khóa đã biết để tương thích với file cũ."""
+        """Chỉ nhận các khóa cấu hình đã biết."""
         allowed = cls.__dataclass_fields__.keys()
         values = {key: value for key, value in data.items() if key in allowed}
-        legacy_depth = data.get("ai_depth")
-        if legacy_depth is not None:
-            values.setdefault("minimax_depth", legacy_depth)
-            values.setdefault("alphabeta_depth", legacy_depth)
         try:
             return cls(**values).validate()
         except (TypeError, ValueError):

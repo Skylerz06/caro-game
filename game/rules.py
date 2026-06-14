@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from game.board import Board, EMPTY
+from game.board import Board
 
 
 DIRECTIONS = ((0, 1), (1, 0), (1, 1), (1, -1))
@@ -63,22 +63,4 @@ def check_win(
     win_length: int,
 ) -> bool:
     return bool(get_winning_line(board, row, col, player, win_length))
-
-
-def find_winner(
-    board: Board,
-    win_length: int,
-) -> tuple[int, list[tuple[int, int]]]:
-    """Quét toàn bàn; dùng cho ảnh chụp lịch sử và kiểm thử."""
-    for row in range(board.rows):
-        for col in range(board.cols):
-            player = board[row][col]
-            if player == EMPTY:
-                continue
-            line = get_winning_line(
-                board, row, col, player, win_length
-            )
-            if line:
-                return player, line
-    return EMPTY, []
 

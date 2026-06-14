@@ -15,18 +15,6 @@ Project tách thành bốn lớp chính:
 `main.py` chỉ điều phối vòng lặp Pygame và chuyển màn hình. Cấu hình được kiểm
 tra bởi `GameSettings` và lưu trong `utils/settings.json`.
 
-## Kế hoạch triển khai
-
-1. Xây dựng `Board`, luật thắng bốn hướng và `GameState` độc lập với Pygame.
-2. Tạo heuristic chung và chuẩn hóa API trả về nước đi kèm `SearchMetrics`.
-3. Cài Greedy một lớp, Minimax giới hạn độ sâu và Alpha-Beta có cắt tỉa.
-4. Xây component UI, menu, settings, game screen và bộ xem lại lịch sử.
-5. Ghép các màn hình trong vòng lặp `App`, sau đó lưu/đọc cấu hình JSON.
-6. Tạo chương trình AI vs AI và đánh giá luật, chiến thuật, render headless.
-
-Thứ tự này cho phép đánh giá thuật toán không cần mở giao diện, đồng thời giữ
-phần trình bày và phần logic tách biệt rõ ràng trong báo cáo.
-
 ## Cấu trúc thư mục
 
 ```text
@@ -158,10 +146,11 @@ cho từng nước ở tầng gốc, không phải heuristic một bước sau k
 
 Dùng đúng cùng cây, thứ tự nước đi và heuristic với Minimax, nhưng loại các
 nhánh không thể làm thay đổi quyết định bằng hai biên `alpha` và `beta`. Vì vậy,
-ở cùng độ sâu hai thuật toán phải chọn cùng nước đi; Alpha-Beta thường mở ít node
-hơn. Heatmap hiển thị `Alpha-Beta Value`; một số giá trị có thể là biên do nhánh
-đã bị cắt, nhưng vẫn là giá trị thực tế thuật toán dùng để quyết định. Panel
-metrics hiển thị thêm số nhánh đã cắt khi có.
+trên cùng cây ứng viên Alpha-Beta bảo toàn giá trị Minimax và thường mở ít node
+hơn. Hai thuật toán có thể chọn tọa độ khác nhau khi nhiều nước có cùng điểm.
+Heatmap hiển thị `Alpha-Beta Value`; một số giá trị có thể là biên do nhánh đã
+bị cắt, nhưng vẫn là giá trị thuật toán dùng để quyết định. Panel metrics hiển
+thị thêm số nhánh đã cắt khi có.
 
 Các AI chỉ xét ô trống trong bán kính hai ô quanh quân đã đánh. Đây là kỹ thuật
 giảm không gian trạng thái phổ biến cho Gomoku, không làm thay đổi luật chơi.
@@ -193,6 +182,9 @@ python experiments/evaluate.py --rows 12 --cols 12 --win 5 \
   --minimax-depth 3 --alphabeta-depth 3 \
   --games 3 --algorithms minimax alphabeta
 ```
+
+Thêm `--global-seed N` để tái lập khai cuộc và quyết định AI; dùng
+`--json-output PATH` khi cần lưu dữ liệu thô theo JSON schema v1.
 
 Trên PowerShell có thể viết cùng lệnh trên một dòng. Kết quả gồm:
 

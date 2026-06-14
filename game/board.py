@@ -61,14 +61,6 @@ class Board:
     def is_full(self) -> bool:
         return self.move_count >= self.rows * self.cols
 
-    def empty_cells(self) -> list[tuple[int, int]]:
-        return [
-            (row, col)
-            for row in range(self.rows)
-            for col in range(self.cols)
-            if self.grid[row][col] == EMPTY
-        ]
-
     def candidate_moves(self, radius: int = 2) -> list[tuple[int, int]]:
         """Chỉ lấy ô gần quân đã đánh để giảm không gian tìm kiếm."""
         if self.move_count == 0:

@@ -55,10 +55,6 @@ class GameState:
         self.history: list[Move] = []
         self.winning_line: list[tuple[int, int]] = []
 
-    @property
-    def last_move(self) -> Move | None:
-        return self.history[-1] if self.history else None
-
     def reset(self) -> None:
         self.board.reset()
         self.current_player = self.starting_player
